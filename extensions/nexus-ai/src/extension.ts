@@ -6,6 +6,8 @@ import { ConversationStore } from "./conversationStore";
 import { NexusRouterViewProvider } from "./nexusRouterViewProvider";
 import { RouteStackStore } from "./routeStackStore";
 import { WorkspaceContextCollector } from "./workspaceContext";
+import { OpenCodeHarness } from "./openCodeHarness";
+import { WorkspaceAgentHost } from "./workspaceAgentHost";
 
 const VIEW_ID = "nexusAI.chat";
 const CONTAINER_ID = "workbench.view.extension.nexus-ai";
@@ -15,6 +17,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const secretStore = new NexusSecretStore(context.secrets);
     const providers = createProviderRegistry(secretStore);
     const routeStack = new RouteStackStore(context.workspaceState);
+    const agentHost = new WorkspaceAgentHost();
+    const openCodePath = vscode.workspace.getConfiguration("nexusAI").get("openCodePath", "").trim();
+    const agentHarness = new OpenCodeHarness(agentHost, openCodePath || undefined, undefined, async () => {
+        const openRouterKey = await secretStore.get(OPENROUTER_API_KEY);
+        const groqKey = await secretStore.get(GROQ_API_KEY);
+        return {
+            ...(openRouterKey ? { OPENROUTER_API_KEY: openRouterKey } : {}),
+            ...(groqKey ? { GROQ_API_KEY: groqKey } : {}),
+        };
+    });
     const setProviderKey = async (provider: "Groq" | "OpenRouter", secretKey: string): Promise<void> => {
         const apiKey = await vscode.window.showInputBox({
             title: `Set ${provider} API Key`,
@@ -32,6 +44,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         new ReadOnlyChatRuntime(providers, secretStore, routeStack),
         new ConversationStore(context.workspaceState),
         new WorkspaceContextCollector(),
+        agentHarness,
     );
     const routerProvider = new NexusRouterViewProvider(context.extensionUri, providers, secretStore, routeStack, {
         groq: { secretKey: GROQ_API_KEY, set: () => setProviderKey("Groq", GROQ_API_KEY) },
@@ -39,6 +52,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     });
 
     context.subscriptions.push(
+        agentHost,
         vscode.window.registerWebviewViewProvider(VIEW_ID, provider, {
             webviewOptions: { retainContextWhenHidden: true },
         }),

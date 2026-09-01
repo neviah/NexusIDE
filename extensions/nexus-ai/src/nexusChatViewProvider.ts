@@ -1,9 +1,9 @@
 import * as vscode from "vscode";
-import { normalizeError } from "@nexus/ai-core";
+import { AgentRunSummary, CodingHarness, normalizeError } from "@nexus/ai-core";
 import { ModelSelection, ReadOnlyChatRuntime } from "./readOnlyChatRuntime";
 import { ConversationStore } from "./conversationStore";
 import { WorkspaceContextCollector } from "./workspaceContext";
-import { ContextAttachment, ContextKind } from "./workspaceContextTypes";
+import { ContextAttachment, ContextKind, formatContext } from "./workspaceContextTypes";
 
 type ChatMode = "ask" | "agent" | "design";
 
@@ -20,6 +20,7 @@ type WebviewMessage =
 export class NexusChatViewProvider implements vscode.WebviewViewProvider {
     private view?: vscode.WebviewView;
     private activeRun?: AbortController;
+    private activeRunId?: string;
     private attachments: ContextAttachment[] = [];
 
     public constructor(
@@ -27,6 +28,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         private readonly chatRuntime: ReadOnlyChatRuntime,
         private readonly conversations: ConversationStore,
         private readonly contextCollector: WorkspaceContextCollector,
+        private readonly agentHarness: CodingHarness,
     ) {}
 
     public resolveWebviewView(view: vscode.WebviewView): void {
@@ -49,6 +51,9 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
 
         if (message.type === "stop") {
             this.activeRun?.abort();
+            if (this.activeRunId) {
+                await this.agentHarness.cancel(this.activeRunId);
+            }
             return;
         }
 
@@ -119,7 +124,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         });
 
         if (message.mode === "agent") {
-            await this.streamAgentPlaceholder(message.harness, message.model, run);
+            await this.streamAgent(message, replaceLast, run);
             return;
         }
 
@@ -172,18 +177,92 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
-    private async streamAgentPlaceholder(harness: string, model: ModelSelection, run: AbortController): Promise<void> {
-        const response = `Agent mode is reserved for the ${harness} harness with ${modelLabel(model)} routing. It cannot modify files or run commands until the Phase 4 trust, approval, diff, and cancellation contracts are active.`;
-        for (const token of response.split(/(\s+)/)) {
-            if (run.signal.aborted) {
-                await this.post({ type: "runStopped" });
-                return;
+    private async streamAgent(
+        message: Extract<WebviewMessage, { type: "send" }>,
+        replaceLast: boolean,
+        run: AbortController,
+    ): Promise<void> {
+        const runId = `${Date.now()}`;
+        this.activeRunId = runId;
+        let response = "";
+        let route = "OpenCode / running";
+        let summary: AgentRunSummary | undefined;
+        let failure: string | undefined;
+        const context = formatContext(this.attachments);
+        const prompt = context ? `${message.prompt.trim()}\n\nAttached context:\n${context}` : message.prompt.trim();
+        try {
+            for await (const event of this.agentHarness.start({
+                runId,
+                prompt,
+                workspaceRoots: (vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri.fsPath),
+                modelSelection: message.model,
+            }, run.signal)) {
+                if (event.type === "text-delta") {
+                    response += event.text;
+                    await this.post({ type: "delta", text: event.text });
+                } else if (event.type === "progress") {
+                    await this.post({ type: "status", text: event.message || "OpenCode is working" });
+                } else if (event.type === "permission") {
+                    await this.post({ type: "agentActivity", text: `Approval requested: ${event.title}` });
+                } else if (event.type === "tool") {
+                    await this.post({ type: "agentActivity", text: `${event.status}: ${event.title}` });
+                } else if (event.type === "command-output" && event.output.trim()) {
+                    await this.post({ type: "agentActivity", text: event.output.trim().slice(-2_000) });
+                } else if (event.type === "file-change") {
+                    await this.post({ type: "agentActivity", text: `${event.change.status}: ${vscode.workspace.asRelativePath(event.change.path)}` });
+                } else if (event.type === "complete") {
+                    summary = event.summary;
+                    route = summaryLabel(event.summary.changedFiles.length, event.summary.validations.length, "completed");
+                } else if (event.type === "cancelled") {
+                    summary = event.summary;
+                    route = summaryLabel(event.summary.changedFiles.length, event.summary.validations.length, "cancelled");
+                } else if (event.type === "failure") {
+                    summary = event.summary;
+                    failure = event.error;
+                    route = summaryLabel(event.summary.changedFiles.length, event.summary.validations.length, "failed");
+                }
             }
-            await this.post({ type: "delta", text: token });
-            await delay(22);
+
+            if (summary) {
+                const audit = formatAuditSummary(summary);
+                response += audit;
+                await this.post({ type: "delta", text: audit });
+            }
+
+            const turn = {
+                prompt: message.prompt.trim(),
+                response,
+                mode: "agent" as const,
+                harness: message.harness,
+                model: message.model,
+                route,
+            };
+            if (replaceLast) {
+                await this.conversations.replaceLast(turn);
+            } else {
+                await this.conversations.append(turn);
+            }
+            await this.post({ type: "conversations", conversations: this.conversations.list(), activeId: this.conversations.activeId() });
+            this.attachments = [];
+            await this.post({ type: "attachments", attachments: [] });
+            if (summary?.status === "cancelled") {
+                await this.post({ type: "runStopped" });
+            } else if (failure) {
+                await this.post({ type: "runError", text: failure, route, preserve: true });
+            } else {
+                await this.post({ type: "runDone", route });
+            }
+        } catch (error) {
+            const normalized = normalizeError(error);
+            await this.post(run.signal.aborted
+                ? { type: "runStopped" }
+                : { type: "runError", text: normalized.message, route });
+        } finally {
+            if (this.activeRun === run) {
+                this.activeRun = undefined;
+                this.activeRunId = undefined;
+            }
         }
-        this.activeRun = undefined;
-        await this.post({ type: "runDone", route: "Agent tools disabled / Phase 4" });
     }
 
     private post(message: unknown): Thenable<boolean> {
@@ -235,6 +314,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         .message header { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 7px; color: var(--vscode-descriptionForeground); font-size: 11px; }
         .message p { margin: 0; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
         .assistant { padding-left: 10px; border-left: 2px solid var(--vscode-focusBorder); }
+        .activity { margin-top: 9px; padding: 7px; max-height: 150px; overflow: auto; border: 1px solid var(--vscode-widget-border); background: var(--vscode-textCodeBlock-background); color: var(--vscode-descriptionForeground); font-family: var(--vscode-editor-font-family); font-size: 11px; white-space: pre-wrap; }
         .route { margin-top: 9px; color: var(--vscode-descriptionForeground); font-size: 11px; }
         .composer { padding: 10px 12px 12px; border-top: 1px solid var(--vscode-sideBar-border, var(--vscode-widget-border)); background: var(--vscode-sideBar-background); }
         .input-wrap { border: 1px solid var(--vscode-input-border, var(--vscode-widget-border)); background: var(--vscode-input-background); border-radius: 4px; }
@@ -382,13 +462,24 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
                 responseNode.textContent += message.text;
                 transcript.scrollTop = transcript.scrollHeight;
             }
+            if (message.type === 'agentActivity' && responseNode) {
+                let activity = responseNode.parentElement.querySelector('.activity');
+                if (!activity) {
+                    activity = document.createElement('div');
+                    activity.className = 'activity';
+                    responseNode.parentElement.insertBefore(activity, responseNode.parentElement.querySelector('.route'));
+                }
+                activity.textContent += (activity.textContent ? '\n' : '') + message.text;
+                activity.scrollTop = activity.scrollHeight;
+                transcript.scrollTop = transcript.scrollHeight;
+            }
             if (message.type === 'runDone') {
                 const routes = transcript.querySelectorAll('.route');
                 if (routes.length) routes[routes.length - 1].textContent = message.route;
                 finish('Ready');
             }
             if (message.type === 'runError') {
-                if (responseNode) responseNode.textContent = message.text;
+                if (responseNode) responseNode.textContent = message.preserve ? responseNode.textContent + '\n\n' + message.text : message.text;
                 const routes = transcript.querySelectorAll('.route');
                 if (routes.length) routes[routes.length - 1].textContent = message.route;
                 finish('Error');
@@ -434,8 +525,18 @@ function modelLabel(model: ModelSelection): string {
     return "Auto / free-first";
 }
 
-function delay(milliseconds: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, milliseconds));
+function summaryLabel(changedFiles: number, validations: number, status: string): string {
+    return `OpenCode / ${status} / ${changedFiles} changed / ${validations} validations`;
+}
+
+function formatAuditSummary(summary: AgentRunSummary): string {
+    const files = summary.changedFiles.length > 0
+        ? summary.changedFiles.map((change) => `${change.status}: ${vscode.workspace.asRelativePath(change.path)}`).join("\n")
+        : "No file changes";
+    const validations = summary.validations.length > 0
+        ? summary.validations.map((validation) => `${validation.exitCode === 0 ? "passed" : "failed"} (${validation.exitCode ?? "terminated"}): ${validation.command}`).join("\n")
+        : "No validations run";
+    return `\n\nRun ${summary.status}\n${files}\n${validations}`;
 }
 
 function createNonce(): string {

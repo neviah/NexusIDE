@@ -62,6 +62,17 @@ The bootstrap downloads the exact Code-OSS Node.js version into `.tools/` when t
 
 `@nexus/ai-core` lives in `packages/ai-core`. It provides dependency-free runtime contracts, Ollama and OpenAI-compatible transports, secure error normalization, and free-first routing. `build-nexus-ai.ps1` validates this package before compiling the extension.
 
+## Agent Mode
+
+Install the launch harness once, then start NexusIDE normally:
+
+```powershell
+npm install -g opencode-ai
+./scripts/launch-code-oss.ps1 -WithNexusAI
+```
+
+Agent mode starts `opencode acp` as a supervised process. It requires a trusted workspace, selects only an advertised Ollama, Groq, or explicit OpenRouter `:free` model, asks before edits and commands, denies outside-workspace and publishing operations, opens native diffs, protects dirty buffers and newer file versions, and records changed files plus validation results. Set `nexusAI.openCodePath` only when OpenCode is not available from the normal global npm location or `PATH`.
+
 ## Status
 
-Phases 0 through 3 are complete. Phase 4 OpenCode Agent integration is next.
+Phases 0 through 4 are complete. Phase 5 expands free-first routing and provider configuration.

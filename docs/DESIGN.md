@@ -133,14 +133,14 @@ NexusOS currently marks FreeCode, Free Claude Code, and OpenCode as its coding-f
 
 ```typescript
 interface CodingHarness {
-  describe(): Promise<HarnessManifest>;
-  start(request: AgentRequest, sink: AgentEventSink): Promise<AgentRun>;
+  describe(): HarnessManifest;
+  start(request: AgentRequest, signal: AbortSignal): AsyncIterable<AgentEvent>;
   cancel(runId: string): Promise<void>;
 }
 
 interface HarnessManifest {
   id: string;
-  version: string;
+  displayName: string;
   capabilities: Array<
     | "ask"
     | "design"
@@ -155,10 +155,12 @@ interface HarnessManifest {
 
 Agent events normalize text deltas, tool requests, approvals, file edits, command starts, command output, diagnostics, route metadata, completion, cancellation, and failure. Capabilities are discovered rather than inferred from a harness name.
 
+OpenCode uses the official ACP SDK over newline-delimited JSON on supervised stdio. NexusIDE injects a restrictive runtime permission overlay, owns permission prompts and client file methods, and selects an advertised local or free-tier model through `session/set_config_option` before sending a prompt.
+
 ### 6.3 File Safety
 
-- Resolve every path against a granted workspace root.
-- Reject path traversal, device paths, and writes outside allowed roots.
+- Resolve every path canonically against a granted workspace root.
+- Reject path traversal, symlink or junction escapes, device paths, alternate data streams, and writes outside allowed roots.
 - Read the current file version before applying an edit.
 - Present a diff when content changed since the harness read it.
 - Never overwrite a dirty editor buffer silently.

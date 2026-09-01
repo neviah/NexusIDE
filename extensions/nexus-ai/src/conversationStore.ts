@@ -1,5 +1,7 @@
 import { ModelSelection, ReadOnlyMode } from "./readOnlyChatRuntime";
 
+export type ConversationMode = ReadOnlyMode | "agent";
+
 const STORAGE_KEY = "nexusAI.conversation.v1";
 
 export interface ConversationStorage {
@@ -10,7 +12,7 @@ export interface ConversationStorage {
 export interface ConversationTurn {
     prompt: string;
     response: string;
-    mode: ReadOnlyMode;
+    mode: ConversationMode;
     harness: string;
     model: ModelSelection;
     route: string;
@@ -149,7 +151,7 @@ function isConversationTurn(value: unknown): value is ConversationTurn {
     const turn = value as Partial<ConversationTurn>;
     return typeof turn.prompt === "string"
         && typeof turn.response === "string"
-        && (turn.mode === "ask" || turn.mode === "design")
+        && (turn.mode === "ask" || turn.mode === "agent" || turn.mode === "design")
         && typeof turn.harness === "string"
         && (turn.model === "auto" || turn.model === "ollama" || turn.model === "openrouter" || turn.model === "groq")
         && typeof turn.route === "string";

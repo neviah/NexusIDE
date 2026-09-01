@@ -4,7 +4,7 @@ Last updated: 2026-09-01
 
 ## Current Milestone
 
-Phase 4: integrate the OpenCode coding harness behind the Agent mode safety boundary.
+Phase 5: expand free-first routing and provider configuration after completing the OpenCode reference harness.
 
 ## Completed
 
@@ -28,22 +28,22 @@ Phase 4: integrate the OpenCode coding harness behind the Agent mode safety boun
 - Native-surface integration tests exercise editing, Explorer, search, terminal, Git/SCM, settings, debugger, and Nexus AI in Code-OSS.
 - The unsigned Windows x64 artifact bundles Nexus AI, preserves a portable `data` directory in its ZIP, and runs with the `NexusIDE` product identity.
 - Ask and Design discover configured Ollama and Groq models and stream through the free-first router with visible route and fallback metadata.
-- Agent mode remains read-only and does not invoke providers or tools before the Phase 4 harness boundary is implemented.
+- Agent mode runs OpenCode `1.16.2` through the official ACP SDK with streamed text, tools, command output, edits, completion, cancellation, and failures.
 - Completed Ask and Design turns persist in bounded workspace state and restore after the webview reloads; malformed state is discarded.
 - OpenRouter discovers its live catalog and admits only models whose prompt, completion, and request prices are explicitly zero.
 - The Nexus Router Activity Bar view manages Groq and OpenRouter credentials, discovers available models, and persists an ordered Auto route stack.
 - Ask and Design can attach bounded active-file, selection, symbol, diagnostic, terminal-selection, and Git-diff context.
 - Regenerate, Stop, New Conversation, and a bounded conversation list work without retaining stale attachments across runs.
 - The Electron integration gate opens both Nexus AI and Nexus Router and fails on extension-host assertion logs.
-
-## In Progress
-
-- Implement the OpenCode process and event adapter.
-- Add Workspace Trust, approval, diff-preview, dirty-buffer, path-containment, and cancellation enforcement for Agent mode.
+- The normalized `CodingHarness` contract and reusable deterministic ACP conformance fixture cover permission, read, two-file edit, shell output, failed-validation recovery, change reporting, secret redaction, and cancellation.
+- Agent safety requires Workspace Trust, canonical root containment, dirty-buffer and newer-disk checks, one-time native approvals, immutable diff previews, and fail-closed external path handling.
+- OpenCode receives Nexus-held Groq and OpenRouter credentials only through its supervised process environment; emitted values are redacted before reaching the webview or audit.
+- Agent model selection occurs through ACP before prompting and permits Ollama, Groq free-tier, or explicit OpenRouter `:free` choices; paid defaults fail closed.
+- OpenCode ACP v1 initialization, session creation, and explicit free-model selection pass model-free runtime smoke tests on Windows.
 
 ## Next
 
-- Run the first approval-gated OpenCode edit through the reusable harness conformance suite.
+- Begin Phase 5 provider discovery, health, quota metadata, and Router UI expansion.
 
 ## Phase 0 Exit Gate
 
@@ -77,3 +77,10 @@ Phase 4: integrate the OpenCode coding harness behind the Agent mode safety boun
 - [x] Bounded conversations restore after reload without exposing provider credentials.
 - [x] File, selection, symbol, diagnostic, terminal-selection, and Git-diff attachments are bounded before routing.
 - [x] Stop, Regenerate, New Conversation, and conversation switching are implemented and tested.
+
+## Phase 4 Exit Gate
+
+- [x] OpenCode passes deterministic read, edit, shell, stream, cancel, and change-reporting tests.
+- [x] The conformance agent performs a two-file change, opens both diffs, reports an approved failed validation, and recovers with a passing validation.
+- [x] Cancellation terminates supervised work, prevents subsequent tool activity, and persists a coherent audit summary.
+- [x] Relative, traversal, sibling-prefix, device, alternate-stream, symlink, junction, and outside-workspace paths fail closed.
