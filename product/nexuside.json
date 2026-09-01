@@ -1,0 +1,18 @@
+{
+  "nameShort": "NexusIDE",
+  "nameLong": "NexusIDE",
+  "applicationName": "nexuside",
+  "dataFolderName": ".nexuside",
+  "sharedDataFolderName": ".nexuside-shared",
+  "win32MutexName": "nexuside",
+  "win32DirName": "NexusIDE",
+  "win32NameVersion": "NexusIDE",
+  "win32RegValueName": "NexusIDE",
+  "win32AppUserModelId": "NexusIDE.NexusIDE",
+  "win32ShellNameShort": "NexusIDE",
+  "win32TunnelServiceMutex": "nexuside-tunnelservice",
+  "win32TunnelMutex": "nexuside-tunnel",
+  "darwinBundleIdentifier": "dev.nexuside.app",
+  "linuxIconName": "nexuside",
+  "urlProtocol": "nexuside"
+}

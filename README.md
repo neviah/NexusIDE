@@ -52,10 +52,12 @@ git clone --recurse-submodules https://github.com/neviah/NexusIDE.git
 Set-Location NexusIDE
 ./scripts/bootstrap.ps1
 ./scripts/compile-code-oss.ps1
+./scripts/build-nexus-ai.ps1
+./scripts/launch-code-oss.ps1 -WithNexusAI
 ```
 
 The bootstrap downloads the exact Code-OSS Node.js version into `.tools/` when the system Node is incompatible. It does not replace the user's global Node installation.
 
 ## Status
 
-Phase 0 is active. Code-OSS `1.136.0` is pinned as a submodule; the current milestone is an unmodified Windows build followed by a bundled right-sidebar extension prototype.
+Phase 0 is complete. Code-OSS `1.136.0` is pinned, compiled, and launched successfully; Phase 1 is building the NexusIDE identity and right-sidebar Nexus AI prototype.

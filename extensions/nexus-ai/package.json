@@ -1,0 +1,68 @@
+{
+  "name": "nexus-ai",
+  "displayName": "Nexus AI",
+  "description": "Free-first AI coding harnesses for NexusIDE.",
+  "version": "0.1.0",
+  "publisher": "nexuside",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.136.0"
+  },
+  "categories": [
+    "AI",
+    "Chat"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "compile": "tsc"
+  },
+  "contributes": {
+    "configuration": {
+      "title": "Nexus AI",
+      "properties": {
+        "nexusAI.openOnStartup": {
+          "type": "boolean",
+          "default": true,
+          "description": "Open Nexus AI in the Secondary Side Bar after startup."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "nexusAI.open",
+        "title": "Open Nexus AI",
+        "category": "NexusIDE",
+        "icon": "$(sparkle)"
+      }
+    ],
+    "viewsContainers": {
+      "secondarySidebar": [
+        {
+          "id": "nexus-ai",
+          "title": "Nexus AI",
+          "icon": "$(sparkle)"
+        }
+      ]
+    },
+    "views": {
+      "nexus-ai": [
+        {
+          "type": "webview",
+          "id": "nexusAI.chat",
+          "name": "Chat",
+          "icon": "$(comment-discussion)",
+          "visibility": "visible",
+          "accessibilityHelpContent": "Use the mode, harness, and model controls to configure a conversation. Ask and Design are read-only. Agent capabilities require workspace trust and explicit approval."
+        }
+      ]
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^6.0.0"
+  }
+}

@@ -1,6 +1,7 @@
 # Code-OSS build outputs
 .build/
 .tools/
+.runtime/
 out/
 dist/
 
@@ -8,6 +9,7 @@ dist/
 node_modules/
 coverage/
 *.log
+extensions/*/out/
 
 # Local configuration and credentials
 .env
