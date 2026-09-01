@@ -13,10 +13,12 @@ import { ProviderStateStore } from "./providerStateStore";
 import { showLanguageToolingReport } from "./languageTooling";
 import { buildSupportDiagnostics } from "./supportDiagnostics";
 import { StartupRecovery } from "./startupRecovery";
+import { CookbookViewProvider } from "./cookbookViewProvider";
 
 const VIEW_ID = "nexusAI.chat";
 const CONTAINER_ID = "workbench.view.extension.nexus-ai";
 const ROUTER_VIEW_ID = "nexusRouter.providers";
+const COOKBOOK_VIEW_ID = "nexusCookbook.models";
 let startupRecovery: StartupRecovery | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
@@ -92,6 +94,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         openrouter: { secretKey: OPENROUTER_API_KEY, set: () => setProviderKey("OpenRouter", OPENROUTER_API_KEY) },
         "custom-openai": { secretKey: CUSTOM_OPENAI_API_KEY, set: configureCustomEndpoint },
     });
+    const cookbookProvider = new CookbookViewProvider();
 
     context.subscriptions.push(
         agentHost,
@@ -100,6 +103,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             webviewOptions: { retainContextWhenHidden: true },
         }),
         vscode.window.registerWebviewViewProvider(ROUTER_VIEW_ID, routerProvider),
+        vscode.window.registerWebviewViewProvider(COOKBOOK_VIEW_ID, cookbookProvider),
         vscode.commands.registerCommand("nexusAI.open", async () => {
             await vscode.commands.executeCommand(CONTAINER_ID);
         }),

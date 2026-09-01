@@ -100,6 +100,11 @@
           "id": "nexus-router",
           "title": "Nexus Router",
           "icon": "media/nexuside.svg"
+        },
+        {
+          "id": "nexus-cookbook",
+          "title": "Model Cookbook",
+          "icon": "media/nexuside.svg"
         }
       ],
       "secondarySidebar": [
@@ -118,6 +123,16 @@
           "name": "Providers and Models",
           "icon": "media/nexuside.svg",
           "visibility": "visible"
+        }
+      ],
+      "nexus-cookbook": [
+        {
+          "type": "webview",
+          "id": "nexusCookbook.models",
+          "name": "Ollama Recommendations",
+          "icon": "media/nexuside.svg",
+          "visibility": "visible",
+          "accessibilityHelpContent": "Review hardware-aware local model recommendations, open official model pages, or pull a curated model with Ollama."
         }
       ],
       "nexus-ai": [

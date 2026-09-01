@@ -8,6 +8,7 @@ const REQUIRED_COMMANDS = [
     "workbench.view.debug",
     "workbench.action.openSettings",
     "workbench.view.extension.nexus-router",
+    "workbench.view.extension.nexus-cookbook",
     "nexusAI.setOpenRouterApiKey",
     "nexusAI.checkLanguageTooling",
 ] as const;
@@ -46,6 +47,7 @@ export async function run(): Promise<void> {
     await vscode.commands.executeCommand("workbench.view.explorer");
     await vscode.commands.executeCommand("workbench.view.extension.nexus-ai");
     await vscode.commands.executeCommand("workbench.view.extension.nexus-router");
+    await vscode.commands.executeCommand("workbench.view.extension.nexus-cookbook");
 
     console.log("NexusIDE native surface smoke test passed.");
 }

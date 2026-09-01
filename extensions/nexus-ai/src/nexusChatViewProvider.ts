@@ -4,12 +4,13 @@ import { ModelSelection, ReadOnlyChatRuntime } from "./readOnlyChatRuntime";
 import { ConversationStore } from "./conversationStore";
 import { WorkspaceContextCollector } from "./workspaceContext";
 import { ContextAttachment, ContextKind, formatContext } from "./workspaceContextTypes";
+import { runQualityLoop } from "./qualityLoop";
 
 type ChatMode = "ask" | "agent" | "design";
 
 type WebviewMessage =
     | { type: "ready" }
-    | { type: "send"; prompt: string; mode: ChatMode; harness: string; model: ModelSelection }
+    | { type: "send"; prompt: string; mode: ChatMode; harness: string; model: ModelSelection; qualityLoop?: boolean; qualityBar?: string; maxRounds?: number }
     | { type: "attach"; kind: ContextKind }
     | { type: "removeAttachment"; id: string }
     | { type: "regenerate" }
@@ -202,12 +203,21 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         const context = formatContext(this.attachments);
         const prompt = context ? `${message.prompt.trim()}\n\nAttached context:\n${context}` : message.prompt.trim();
         try {
-            for await (const event of this.agentHarness.start({
+            const request = {
                 runId,
                 prompt,
                 workspaceRoots: (vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri.fsPath),
                 modelSelection: message.model,
-            }, run.signal)) {
+            };
+            const events = message.qualityLoop
+                ? runQualityLoop(this.agentHarness, {
+                    request,
+                    qualityBar: message.qualityBar?.trim() || "The requested behavior is complete, focused, and validated with relevant tests.",
+                    maxRounds: message.maxRounds ?? 3,
+                    onRunStart: (childRunId) => { this.activeRunId = childRunId; },
+                }, run.signal)
+                : this.agentHarness.start(request, run.signal);
+            for await (const event of events) {
                 if (event.type === "text-delta") {
                     response += event.text;
                     await this.post({ type: "delta", text: event.text });
@@ -236,6 +246,10 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
 
             if (summary) {
                 const audit = formatAuditSummary(summary);
+                if (summary.message) {
+                    response += `\n\n${summary.message}`;
+                    await this.post({ type: "delta", text: `\n\n${summary.message}` });
+                }
                 response += audit;
                 await this.post({ type: "delta", text: audit });
             }
@@ -316,6 +330,10 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         .mode button { border: 0; border-radius: 3px; color: var(--vscode-descriptionForeground); background: transparent; cursor: pointer; }
         .mode button[aria-pressed="true"] { color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
         .selectors { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+        .quality { display: none; grid-template-columns: auto 1fr 64px; gap: 7px; align-items: end; margin-top: 8px; }
+        .quality.visible { display: grid; }
+        .quality-toggle { display: flex; align-items: center; gap: 5px; min-height: 28px; color: var(--vscode-foreground); }
+        .quality input[type="text"] { width: 100%; height: 28px; padding: 0 6px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); }
         label { display: grid; gap: 4px; color: var(--vscode-descriptionForeground); font-size: 11px; }
         select { width: 100%; height: 28px; padding: 0 6px; color: var(--vscode-dropdown-foreground); background: var(--vscode-dropdown-background); border: 1px solid var(--vscode-dropdown-border); border-radius: 2px; }
         .transcript { min-height: 0; overflow-y: auto; padding: 14px 12px 24px; }
@@ -359,6 +377,11 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
                 <label>Harness<select id="harness"><option value="${harness.id}">${harness.displayName}</option></select></label>
                 <label>Provider<select id="model"><option value="auto">Auto / free-first</option><option value="ollama">Ollama / local</option><option value="openrouter">OpenRouter / free only</option><option value="groq">Groq / free tier</option></select></label>
             </div>
+            <div id="quality" class="quality">
+                <label class="quality-toggle"><input id="qualityLoop" type="checkbox">Quality Loop</label>
+                <label>Quality bar<input id="qualityBar" type="text" value="Complete, focused, and validated" aria-label="Quality bar"></label>
+                <label>Rounds<select id="maxRounds"><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>
+            </div>
         </section>
         <section id="transcript" class="transcript" aria-live="polite">
             <div id="empty" class="empty"><div class="mark">N</div><strong>Nexus AI</strong><span>Local and free-tier coding routes.</span></div>
@@ -382,6 +405,10 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         const contextKind = document.getElementById('contextKind');
         const attachments = document.getElementById('attachments');
         const conversation = document.getElementById('conversation');
+        const quality = document.getElementById('quality');
+        const qualityLoop = document.getElementById('qualityLoop');
+        const qualityBar = document.getElementById('qualityBar');
+        const maxRounds = document.getElementById('maxRounds');
         let mode = 'ask';
         let running = false;
         let responseNode;
@@ -390,6 +417,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
             mode = button.dataset.mode;
             document.querySelectorAll('[data-mode]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
             prompt.placeholder = mode === 'agent' ? 'Describe a coding task...' : mode === 'design' ? 'Describe what you want to design...' : 'Ask about this workspace...';
+            quality.classList.toggle('visible', mode === 'agent');
         }));
 
         function submit() {
@@ -398,7 +426,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
                 return;
             }
             if (!prompt.value.trim()) return;
-            vscode.postMessage({ type: 'send', prompt: prompt.value, mode, harness: harness.value, model: model.value });
+            vscode.postMessage({ type: 'send', prompt: prompt.value, mode, harness: harness.value, model: model.value, qualityLoop: mode === 'agent' && qualityLoop.checked, qualityBar: qualityBar.value, maxRounds: Number(maxRounds.value) });
             prompt.value = '';
         }
 
