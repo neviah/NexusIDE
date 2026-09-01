@@ -27,7 +27,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     startupRecovery = new StartupRecovery(context.globalState);
     const recoveryDetected = await startupRecovery.begin();
     if (recoveryDetected) {
-        await vscode.window.showWarningMessage("Nexus AI recovered from an unclean shutdown. Completed conversations and provider settings were restored from validated state.");
+        void vscode.window.showWarningMessage("Nexus AI recovered from an unclean shutdown. Completed conversations and provider settings were restored from validated state.");
     }
     const secretStore = new NexusSecretStore(context.secrets);
     const providers = createProviderRegistry(secretStore);
