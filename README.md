@@ -42,6 +42,7 @@ Harnesses that only provide model chat remain usable in Ask mode but are not pre
 - [Engineering guardrails](docs/GUARDRAILS.md)
 - [Provider strategy](docs/PROVIDERS.md)
 - [Harness evaluation](docs/HARNESSES.md)
+- [Git and language workflows](docs/LANGUAGES.md)
 - [Architecture decisions](docs/DECISIONS.md)
 - [Upstream maintenance](docs/UPSTREAM.md)
 
@@ -54,11 +55,14 @@ Set-Location NexusIDE
 ./scripts/compile-code-oss.ps1
 ./scripts/build-nexus-ai.ps1
 ./scripts/test-nexus-ai.ps1
+./scripts/test-phase7-workflows.ps1
 ./scripts/launch-code-oss.ps1 -WithNexusAI
 ./scripts/build-portable.ps1
 ```
 
 The bootstrap downloads the exact Code-OSS Node.js version into `.tools/` when the system Node is incompatible. It does not replace the user's global Node installation.
+
+Run **NexusIDE: Check Language Tooling** from the Command Palette for Python, C#, and Unity runtime and extension readiness. Missing optional components are reported with setup steps instead of silently disabling features.
 
 `@nexus/ai-core` lives in `packages/ai-core`. It provides dependency-free runtime contracts, Ollama and OpenAI-compatible transports, secure error normalization, and free-first routing. `build-nexus-ai.ps1` validates this package before compiling the extension.
 
@@ -75,4 +79,4 @@ Agent mode starts `opencode acp` as a supervised process. It requires a trusted 
 
 ## Status
 
-Phases 0 through 6 are complete. Phase 7 verifies Git and language workflows.
+Phases 0 through 7 are complete. Phase 8 packages the private alpha and adds one-click setup flows.

@@ -136,6 +136,8 @@ Estimates assume one experienced developer working primarily on NexusIDE. Calend
 
 ## Phase 7: Git And Language Workflows
 
+**Status:** Complete
+
 **Estimate:** 2-3 weeks
 
 ### Work

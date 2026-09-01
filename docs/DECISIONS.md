@@ -117,3 +117,13 @@ This log records decisions that materially affect scope, maintenance, security, 
 **Reason:** The authoritative repositories invalidate ADR-005's provenance assumptions. `fcc-opencode acp` reuses OpenCode's ACP lifecycle but rejects the process configuration NexusIDE uses to force safety policy. Free Code exposes a structured stream and stdio permission controls, but its repository provides no license grant, requires authenticated inference, and supports Windows only through WSL.
 
 **Consequence:** No misleading duplicate harness appears in Agent mode and no safety setting is dropped to gain provider compatibility. Both candidates may be reconsidered when the specific blocker is resolved; see [HARNESSES.md](HARNESSES.md).
+
+## ADR-013: Keep Language Tooling Optional And License-Gated
+
+**Status:** Accepted
+
+**Decision:** Approve the MIT `ms-python.python` Open VSX artifact as the Python entry point, with `ms-python.debugpy` required for debugging. Do not bundle C# Dev Kit, Marketplace-only C# runtime components, or the official Unity extension. Detect optional runtimes and extensions and provide exact setup guidance.
+
+**Reason:** Built-in web language services already ship with Code-OSS. Python has a verified Open VSX path. The official C# and Unity IDs are absent from Open VSX, and C# ships runtime components under terms beyond the MIT source license. Automatic Marketplace downloads would violate the distribution boundary established in ADR-006.
+
+**Consequence:** Git and web workflows work out of the box. Python, C#, and Unity capabilities are honest and testable on equipped hosts without making unavailable proprietary components a launch dependency. See [LANGUAGES.md](LANGUAGES.md).

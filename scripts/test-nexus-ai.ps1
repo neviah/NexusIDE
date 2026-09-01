@@ -6,7 +6,7 @@ $runtime = Join-Path $root ".runtime\extension-tests"
 $requiredNode = (Get-Content (Join-Path $codeOss ".nvmrc") -Raw).Trim()
 $portableNodeDirectory = Join-Path $root ".tools\node-v$requiredNode-win-x64"
 
-if (Test-Path (Join-Path $portableNodeDirectory "node.exe")) {
+if ((Test-Path (Join-Path $portableNodeDirectory "node.exe")) -and -not (($env:Path -split ";") -contains $portableNodeDirectory)) {
     $env:Path = "$portableNodeDirectory;$env:Path"
 }
 

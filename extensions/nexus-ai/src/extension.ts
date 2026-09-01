@@ -10,6 +10,7 @@ import { WorkspaceContextCollector } from "./workspaceContext";
 import { OpenCodeHarness } from "./openCodeHarness";
 import { WorkspaceAgentHost } from "./workspaceAgentHost";
 import { ProviderStateStore } from "./providerStateStore";
+import { showLanguageToolingReport } from "./languageTooling";
 
 const VIEW_ID = "nexusAI.chat";
 const CONTAINER_ID = "workbench.view.extension.nexus-ai";
@@ -27,6 +28,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         onRouteFailure: (observation) => providerState.recordFailure(observation),
         onQuota: (observation) => providerState.recordQuota(observation),
     });
+    const languageToolingOutput = vscode.window.createOutputChannel("NexusIDE Language Tooling");
     const agentHost = new WorkspaceAgentHost();
     const openCodePath = vscode.workspace.getConfiguration("nexusAI").get("openCodePath", "").trim();
     const agentHarness = new OpenCodeHarness(agentHost, openCodePath || undefined, undefined, async () => {
@@ -85,6 +87,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     context.subscriptions.push(
         agentHost,
+        languageToolingOutput,
         vscode.window.registerWebviewViewProvider(VIEW_ID, provider, {
             webviewOptions: { retainContextWhenHidden: true },
         }),
@@ -111,6 +114,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             await secretStore.delete(CUSTOM_OPENAI_API_KEY);
             await vscode.window.showInformationMessage("Custom endpoint credentials removed.");
         }),
+        vscode.commands.registerCommand("nexusAI.checkLanguageTooling", () => showLanguageToolingReport(languageToolingOutput)),
     );
 
     if (vscode.workspace.getConfiguration("nexusAI").get("openOnStartup", true)) {

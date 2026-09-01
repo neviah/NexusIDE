@@ -27,16 +27,17 @@ import type {
 type AcpModule = typeof Acp;
 
 const importEsm = new Function("specifier", "return import(specifier)") as (specifier: string) => Promise<AcpModule>;
+const DENIED_AGENT_OPERATION = /\b(git\s+(?:clean|reset\b.*--hard|checkout\s+--|restore)|(?:npm|pnpm|yarn)\s+publish|rm\s+-rf|rmdir\b|del\b|remove-item\b.*-recurse)\b/i;
 const OPEN_CODE_POLICY = JSON.stringify({
     share: "disabled",
     permission: {
         edit: "ask",
         bash: {
             "*": "ask",
-            "git commit": "deny",
-            "git commit *": "deny",
-            "git push": "deny",
-            "git push *": "deny",
+            "git commit": "ask",
+            "git commit *": "ask",
+            "git push": "ask",
+            "git push *": "ask",
             "git clean *": "deny",
             "git reset *--hard*": "deny",
             "git checkout -- *": "deny",
@@ -55,6 +56,10 @@ const OPEN_CODE_POLICY = JSON.stringify({
         external_directory: "deny",
     },
 });
+
+export function isDeniedAgentOperation(operation: string): boolean {
+    return DENIED_AGENT_OPERATION.test(operation);
+}
 
 interface ActiveRun {
     process: ChildProcessWithoutNullStreams;

@@ -14,7 +14,7 @@ $productOverride = Join-Path $codeOss "product.overrides.json"
 $runtimeName = if ($WithNexusAI) { "nexuside" } else { "stock-code-oss" }
 $runtimeRoot = Join-Path $root ".runtime\$runtimeName"
 
-if (Test-Path (Join-Path $portableNodeDirectory "node.exe")) {
+if ((Test-Path (Join-Path $portableNodeDirectory "node.exe")) -and -not (($env:Path -split ";") -contains $portableNodeDirectory)) {
     $env:Path = "$portableNodeDirectory;$env:Path"
 }
 

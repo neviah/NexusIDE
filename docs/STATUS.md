@@ -4,7 +4,7 @@ Last updated: 2026-09-01
 
 ## Current Milestone
 
-Phase 7: verify Git and language workflows while preserving native Code-OSS behavior.
+Phase 8: package the private alpha and build one-click install, update, and repair flows.
 
 ## Completed
 
@@ -48,10 +48,16 @@ Phase 7: verify Git and language workflows while preserving native Code-OSS beha
 - Phase 6 admitted no additional coding harness after evaluating `freecodexyz/free-code` and `Alishahryar1/free-claude-code`: Free Code lacks a license grant and conformance evidence, while Free Claude Code is a provider proxy whose OpenCode launcher cannot yet compose with NexusIDE's enforced process policy.
 - Agent mode now derives the displayed identity from the admitted OpenCode manifest and rejects mismatched or incomplete harness identities at the host boundary.
 - Core harness qualification distinguishes Agent-capable, Ask-only, and ineligible manifests; OpenCode remains the only adapter with complete deterministic lifecycle and model-free runtime evidence.
+- Native Git status, diff, stage, commit, branch, push, clone, pull, credential-helper discovery, and GitHub HTTPS transport pass the repeatable Phase 7 workflow matrix.
+- Agent `git commit` and `git push` now reach the modal Allow Once approval flow; destructive Git, package publishing, and recursive deletion remain hard-denied.
+- Electron integration verifies built-in JavaScript, TypeScript, HTML, CSS, and JSON language services plus the native debug surface.
+- Python 3.14 compile/run passes locally; the optional tooling checker reports interpreter, extension, and debugger readiness with actionable setup instructions.
+- C# and Unity remain optional: the checker detects missing .NET SDK, Unity editor, and reviewed extensions instead of claiming unavailable functionality.
+- Python's MIT Open VSX extension path is approved; official C# and Unity extensions are not bundled because the required artifacts are absent from Open VSX and shipped runtime terms require separate review.
 
 ## Next
 
-- Begin Phase 7 native Git and language workflow verification, including curated Python and C#/Unity tooling decisions.
+- Begin Phase 8 packaging, Pinokio launcher, clean-machine, CI, and private-alpha setup work.
 
 ## Phase 0 Exit Gate
 
@@ -106,3 +112,12 @@ Phase 7: verify Git and language workflows while preserving native Code-OSS beha
 - [x] Agent mode exposes only OpenCode, whose deterministic conformance and model-free Windows smoke evidence remain green.
 - [x] Incomplete manifests are explicitly classified Ask-only or ineligible and cannot enter Agent mode.
 - [x] Hermes and OpenClaw remain outside launch scope with no unsupported coding claims.
+
+## Phase 7 Exit Gate
+
+- [x] Native Git and GitHub-compatible workflows pass without a Nexus-specific Git implementation.
+- [x] Agent commit and push require explicit approval while destructive Git operations remain denied.
+- [x] Built-in web language services and debugging pass inside the Electron integration host.
+- [x] Python runtime workflows pass and optional Python extension/debug prerequisites are detected.
+- [x] C# and Unity workflows are capability-gated and provide actionable setup guidance when the SDK, editor, or reviewed extensions are unavailable.
+- [x] Tooling selection and redistribution constraints are recorded in [LANGUAGES.md](LANGUAGES.md).

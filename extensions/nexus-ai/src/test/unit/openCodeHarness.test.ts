@@ -10,7 +10,7 @@ import type {
     WriteTextFileRequest,
 } from "@agentclientprotocol/sdk" with { "resolution-mode": "import" };
 import { AgentEvent, requireContainedPath } from "@nexus/ai-core";
-import { OpenCodeHarness, OpenCodeHost, OpenCodeProcessFactory, selectFreeModel } from "../../openCodeHarness";
+import { isDeniedAgentOperation, OpenCodeHarness, OpenCodeHost, OpenCodeProcessFactory, selectFreeModel } from "../../openCodeHarness";
 
 test("OpenCode ACP adapter passes the reusable harness lifecycle", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "nexus-acp-"));
@@ -40,12 +40,21 @@ test("OpenCode ACP adapter passes the reusable harness lifecycle", async () => {
         const policy = JSON.parse(injectedPolicy) as { permission: { external_directory: string; edit: string; bash: Record<string, string> } };
         assert.equal(policy.permission.external_directory, "deny");
         assert.equal(policy.permission.edit, "ask");
-        assert.equal(policy.permission.bash["git push *"], "deny");
+        assert.equal(policy.permission.bash["git commit *"], "ask");
+        assert.equal(policy.permission.bash["git push *"], "ask");
         assert.equal(policy.permission.bash["yarn publish *"], "deny");
         assert.equal(policy.permission.bash["git reset *--hard*"], "deny");
     } finally {
         await rm(root, { recursive: true, force: true });
     }
+});
+
+test("commit and push require approval while destructive operations stay denied", () => {
+    assert.equal(isDeniedAgentOperation("git commit -m test"), false);
+    assert.equal(isDeniedAgentOperation("git push origin main"), false);
+    assert.equal(isDeniedAgentOperation("git reset --hard HEAD~1"), true);
+    assert.equal(isDeniedAgentOperation("git clean -fd"), true);
+    assert.equal(isDeniedAgentOperation("npm publish"), true);
 });
 
 test("model selection never falls through to a paid default", () => {

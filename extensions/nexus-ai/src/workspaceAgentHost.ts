@@ -10,9 +10,9 @@ import type {
     WriteTextFileRequest,
     WriteTextFileResponse,
 } from "@agentclientprotocol/sdk" with { "resolution-mode": "import" };
+import { isDeniedAgentOperation } from "./openCodeHarness";
 
 const PREVIEW_SCHEME = "nexus-agent-before";
-const BLOCKED_OPERATION = /\b(git\s+(?:commit|push|clean|reset\b.*--hard|checkout\s+--|restore)|(?:npm|pnpm|yarn)\s+publish|rm\s+-rf|rmdir\b|del\b|remove-item\b.*-recurse)\b/i;
 
 export class WorkspaceAgentHost implements vscode.Disposable {
     private readonly snapshots = new Map<string, string>();
@@ -58,7 +58,7 @@ export class WorkspaceAgentHost implements vscode.Disposable {
         }
 
         const operation = `${params.toolCall.title ?? ""} ${JSON.stringify(params.toolCall.rawInput ?? "")}`;
-        if (BLOCKED_OPERATION.test(operation) || (this.isMutation(params) && this.hasDirtyWorkspaceDocument(locations))) {
+        if (isDeniedAgentOperation(operation) || (this.isMutation(params) && this.hasDirtyWorkspaceDocument(locations))) {
             return this.rejection(params.options);
         }
 

@@ -82,6 +82,11 @@
         "command": "nexusAI.deleteCustomOpenAIKey",
         "title": "Delete Custom OpenAI-Compatible API Key",
         "category": "NexusIDE"
+      },
+      {
+        "command": "nexusAI.checkLanguageTooling",
+        "title": "Check Language Tooling",
+        "category": "NexusIDE"
       }
     ],
     "viewsContainers": {

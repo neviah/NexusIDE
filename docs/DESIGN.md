@@ -203,8 +203,8 @@ Agent commits and pushes always require explicit approval in the first release. 
 ### 8.3 Languages
 
 - Built in: JavaScript, TypeScript, HTML, CSS, JSON.
-- Curated redistributable tooling: Python and C#/Unity.
-- Tool selection is verified against its license and Open VSX availability before bundling.
+- Curated optional tooling: Python from reviewed Open VSX artifacts; C#/Unity from user-installed reviewed VSIX files until redistributable registry artifacts are available.
+- Tool selection is verified against source and runtime licenses plus Open VSX availability before bundling. Missing optional tools are reported by the built-in readiness command.
 - NexusIDE does not claim parity with proprietary Microsoft extensions unless tested and legally distributable.
 
 ## 9. State And Security
