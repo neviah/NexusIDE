@@ -1,0 +1,22 @@
+# Code-OSS checkout and build outputs
+code-oss/
+.build/
+out/
+dist/
+
+# Dependencies and test output
+node_modules/
+coverage/
+*.log
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.local.json
+
+# Editor and operating system files
+.vscode/
+.vs/
+.DS_Store
+Thumbs.db
