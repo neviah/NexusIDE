@@ -3,12 +3,14 @@ import {
     NexusError,
     normalizeError,
     ProviderRegistry,
+    ProviderHealth,
     RouteCandidate,
     RoutedCompletionEvent,
     SecretStore,
 } from "@nexus/ai-core";
 import { RouteStackStore } from "./routeStackStore";
 import { ContextAttachment, formatContext } from "./workspaceContextTypes";
+import { ProviderStateStore } from "./providerStateStore";
 
 export type ReadOnlyMode = "ask" | "design";
 export type ModelSelection = "auto" | "ollama" | "openrouter" | "groq";
@@ -27,6 +29,7 @@ export class ReadOnlyChatRuntime {
         private readonly secretStore: SecretStore,
         private readonly routeStack?: RouteStackStore,
         private readonly router = new CompletionRouter(),
+        private readonly providerState?: ProviderStateStore,
     ) {}
 
     public providerNames(): readonly string[] {
@@ -51,7 +54,11 @@ export class ReadOnlyChatRuntime {
         let firstFailure: NexusError | undefined;
 
         for (const adapter of this.providers.list()) {
-            if (selection !== "auto" && adapter.manifest().id !== selection) {
+            const providerId = adapter.manifest().id;
+            if (selection !== "auto" && providerId !== selection) {
+                continue;
+            }
+            if (this.providerState?.provider(providerId).enabled === false) {
                 continue;
             }
             try {
@@ -59,15 +66,27 @@ export class ReadOnlyChatRuntime {
                 if (!authentication.authenticated) {
                     continue;
                 }
+                const health = await this.resolveHealth(adapter, signal);
+                if (health.status === "unavailable") {
+                    continue;
+                }
                 const models = await adapter.listModels(signal);
                 const stack = selection === "auto" ? this.routeStack?.load() ?? [] : [];
                 candidates.push(...models.flatMap((model) => {
-                    const route = `${adapter.manifest().id}/${model.id}`;
+                    const route = `${providerId}/${model.id}`;
                     const stackIndex = stack.indexOf(route);
                     if (stack.length > 0 && stackIndex < 0) {
                         return [];
                     }
-                    return [{ adapter, model, health: "healthy" as const, priority: stackIndex < 0 ? 0 : 1_000_000 - stackIndex * 10_000 }];
+                    const runtime = this.providerState?.route(providerId, model.id);
+                    return [{
+                        adapter,
+                        model,
+                        health: health.status,
+                        quota: runtime?.quota,
+                        cooldownUntil: runtime?.cooldownUntil,
+                        priority: stackIndex < 0 ? 0 : 1_000_000 - stackIndex * 10_000,
+                    }];
                 }));
             } catch (error) {
                 const normalized = normalizeError(error, adapter.manifest().id);
@@ -90,6 +109,17 @@ export class ReadOnlyChatRuntime {
             });
         }
         return candidates;
+    }
+
+    private async resolveHealth(adapter: ReturnType<ProviderRegistry["list"]>[number], signal: AbortSignal): Promise<ProviderHealth> {
+        const providerId = adapter.manifest().id;
+        const cached = this.providerState?.provider(providerId).health;
+        if (cached && Date.now() - Date.parse(cached.checkedAt) < 30_000) {
+            return cached;
+        }
+        const health = await adapter.health(signal);
+        await this.providerState?.recordHealth(providerId, health);
+        return health;
     }
 }
 

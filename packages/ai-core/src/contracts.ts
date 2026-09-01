@@ -27,6 +27,15 @@ export interface ProviderHealth {
     message?: string;
 }
 
+export interface ProviderQuota {
+    status: "available" | "limited" | "exhausted" | "unknown";
+    observedAt: string;
+    remaining?: number;
+    limit?: number;
+    resetsAt?: string;
+    note?: string;
+}
+
 export interface ModelDescriptor {
     id: string;
     displayName?: string;
@@ -55,6 +64,7 @@ export interface CompletionRequest {
 export type ProviderStreamEvent =
     | { type: "text-delta"; text: string }
     | { type: "usage"; inputTokens?: number; outputTokens?: number }
+    | { type: "quota"; quota: ProviderQuota }
     | { type: "done"; finishReason?: string };
 
 export interface ProviderAdapter {
@@ -71,6 +81,8 @@ export interface RouteCandidate {
     enabled?: boolean;
     priority?: number;
     health?: ProviderHealth["status"];
+    quota?: ProviderQuota;
+    cooldownUntil?: string;
 }
 
 export interface PaidRouteConsent {
@@ -95,4 +107,5 @@ export interface RoutedCompletionRequest extends Omit<CompletionRequest, "model"
 export type RoutedCompletionEvent =
     | ProviderStreamEvent
     | { type: "route-attempt"; runId: string; providerId: string; modelId: string; attempt: number }
+    | { type: "route-cooldown"; runId: string; providerId: string; modelId: string; until: string; reason: string }
     | { type: "fallback"; runId: string; fromProviderId: string; fromModelId: string; toProviderId: string; toModelId: string; reason: string };

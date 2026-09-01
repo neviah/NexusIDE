@@ -5,21 +5,44 @@ export interface CompletionRouterOptions {
     maxAttemptsPerRoute?: number;
     maxTotalRetryDelayMs?: number;
     sleep?: (milliseconds: number, signal: AbortSignal) => Promise<void>;
+    now?: () => number;
+    onRouteFailure?: (observation: RouteFailureObservation) => void | Promise<void>;
+    onQuota?: (observation: RouteQuotaObservation) => void | Promise<void>;
+}
+
+export interface RouteFailureObservation {
+    providerId: string;
+    modelId: string;
+    code: NexusError["code"];
+    observedAt: string;
+    cooldownUntil?: string;
+}
+
+export interface RouteQuotaObservation {
+    providerId: string;
+    modelId: string;
+    quota: NonNullable<RouteCandidate["quota"]>;
 }
 
 export class CompletionRouter {
     private readonly maxAttemptsPerRoute: number;
     private readonly maxTotalRetryDelayMs: number;
     private readonly sleep: (milliseconds: number, signal: AbortSignal) => Promise<void>;
+    private readonly now: () => number;
+    private readonly onRouteFailure?: (observation: RouteFailureObservation) => void | Promise<void>;
+    private readonly onQuota?: (observation: RouteQuotaObservation) => void | Promise<void>;
 
     public constructor(options: CompletionRouterOptions = {}) {
         this.maxAttemptsPerRoute = Math.max(1, options.maxAttemptsPerRoute ?? 2);
         this.maxTotalRetryDelayMs = Math.max(0, options.maxTotalRetryDelayMs ?? 5_000);
         this.sleep = options.sleep ?? abortableSleep;
+        this.now = options.now ?? Date.now;
+        this.onRouteFailure = options.onRouteFailure;
+        this.onQuota = options.onQuota;
     }
 
     public async *stream(request: RoutedCompletionRequest, signal: AbortSignal): AsyncGenerator<RoutedCompletionEvent> {
-        const candidates = eligibleCandidates(request);
+        const candidates = eligibleCandidates(request, this.now());
         if (candidates.length === 0) {
             throw new NexusError({ code: "no-routes", message: "No eligible no-cost route is available." });
         }
@@ -42,6 +65,9 @@ export class CompletionRouter {
                         structuredOutput: request.structuredOutput,
                     }, signal)) {
                         emittedContent ||= event.type === "text-delta";
+                        if (event.type === "quota") {
+                            await this.onQuota?.({ providerId, modelId: candidate.model.id, quota: event.quota });
+                        }
                         yield event;
                     }
                     return;
@@ -49,6 +75,20 @@ export class CompletionRouter {
                     lastError = normalizeError(error, providerId);
                     if (lastError.code === "aborted" || emittedContent) {
                         throw lastError;
+                    }
+
+                    const cooldownUntil = lastError.code === "rate-limited"
+                        ? new Date(this.now() + Math.max(lastError.retryAfterMs ?? 0, 60_000)).toISOString()
+                        : undefined;
+                    await this.onRouteFailure?.({
+                        providerId,
+                        modelId: candidate.model.id,
+                        code: lastError.code,
+                        observedAt: new Date(this.now()).toISOString(),
+                        cooldownUntil,
+                    });
+                    if (cooldownUntil) {
+                        yield { type: "route-cooldown", runId: request.runId, providerId, modelId: candidate.model.id, until: cooldownUntil, reason: lastError.code };
                     }
 
                     const requestedDelay = lastError.retryAfterMs ?? 0;
@@ -86,11 +126,13 @@ export class CompletionRouter {
     }
 }
 
-export function eligibleCandidates(request: RoutedCompletionRequest): RouteCandidate[] {
+export function eligibleCandidates(request: RoutedCompletionRequest, now = Date.now()): RouteCandidate[] {
     return request.candidates
         .filter((candidate) => candidate.enabled !== false)
         .filter((candidate) => isCostAllowed(candidate, request))
         .filter((candidate) => candidate.health !== "unavailable")
+        .filter((candidate) => candidate.quota?.status !== "exhausted")
+        .filter((candidate) => !candidate.cooldownUntil || Date.parse(candidate.cooldownUntil) <= now)
         .filter((candidate) => !request.requirements?.tools || candidate.model.supportsTools)
         .filter((candidate) => !request.requirements?.structuredOutput || candidate.model.supportsStructuredOutput)
         .filter((candidate) => !request.requirements?.estimatedInputTokens || !candidate.model.contextTokens || request.requirements.estimatedInputTokens <= candidate.model.contextTokens)
@@ -113,7 +155,18 @@ function routeScore(candidate: RouteCandidate, request: RoutedCompletionRequest)
     const cost = candidate.model.costClass === "local" ? 2_000 : candidate.model.costClass === "free-tier" ? 1_000 : 0;
     const health = candidate.health === "healthy" ? 100 : candidate.health === "degraded" ? -100 : 0;
     const context = Math.min(candidate.model.contextTokens ?? 0, 1_000_000) / 100_000;
-    return (pinned ? 10_000 : 0) + cost + health + (candidate.model.codingScore ?? 0) * 10 + context + (candidate.priority ?? 0);
+    const quota = quotaScore(candidate);
+    return (pinned ? 10_000 : 0) + cost + health + quota + (candidate.model.codingScore ?? 0) * 10 + context + (candidate.priority ?? 0);
+}
+
+function quotaScore(candidate: RouteCandidate): number {
+    if (candidate.quota?.status === "available") return 50;
+    if (candidate.quota?.status === "limited") {
+        return candidate.quota.limit && candidate.quota.remaining !== undefined
+            ? Math.max(-50, Math.min(25, candidate.quota.remaining / candidate.quota.limit * 50 - 25))
+            : -25;
+    }
+    return 0;
 }
 
 function abortableSleep(milliseconds: number, signal: AbortSignal): Promise<void> {

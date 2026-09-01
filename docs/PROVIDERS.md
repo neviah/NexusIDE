@@ -23,7 +23,7 @@ NexusIDE should combine local inference and legitimate provider free tiers witho
 - OpenRouter: implemented with live model discovery; only models with explicitly zero prompt, completion, and request prices enter Auto routing.
 - Groq: implemented through its OpenAI-compatible API with account-specific free limits.
 
-The Nexus Router Activity Bar view stores cloud credentials through VS Code SecretStorage, discovers available models, and lets the user order the routes used by Auto. Ollama remains usable without credentials. Catalog eligibility is re-evaluated during discovery; NexusIDE does not infer free status from model names.
+The Nexus Router Activity Bar view stores credentials through VS Code SecretStorage, discovers available models, checks health, shows advisory quota and cooldown state, and lets the user enable providers and explicitly order the routes used by Auto. Ollama remains usable without credentials. The custom endpoint is disabled initially, uses a loopback URL by default, permits an optional API key, and is classified as local rather than assumed to be a cloud free tier. Catalog eligibility is re-evaluated during discovery; NexusIDE does not infer free status from model names.
 
 ### Tier 2: Evaluate During Provider Expansion
 
@@ -36,6 +36,8 @@ The Nexus Router Activity Bar view stores cloud credentials through VS Code Secr
 - Cloudflare Workers AI where the user's account supplies an eligible allowance.
 
 This is a candidate list, not a claim that each provider will retain a free tier. Before implementation, verify current API documentation, allowed client types, rate limits, model availability, regional restrictions, data terms, and whether a user-supplied key may be used in a desktop application.
+
+Phase 5 keeps these providers deferred. Their authentication, catalog, quota, and terms differ enough that labeling them as generic OpenAI-compatible free routes would weaken the admission policy. Each remains eligible for a later provider-specific adapter after the admission checklist passes; users can connect a compatible self-hosted gateway through the custom endpoint without NexusIDE asserting a third-party free allowance.
 
 ### Not A Provider Contract
 
@@ -110,6 +112,8 @@ Providers expose quotas inconsistently. NexusIDE should support:
 - User-entered quota notes where no API exists.
 - Cooldown estimates after 429 responses.
 - A visible Unknown state rather than invented remaining capacity.
+
+OpenAI-compatible adapters normalize request-limit headers when present. Missing headers remain Unknown, and cloud free tiers are always described as limited by provider/account policy, never unlimited.
 
 Quota tracking is advisory. The provider response remains authoritative.
 

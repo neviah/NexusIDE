@@ -1,9 +1,10 @@
-import { createGroqAdapter, createOpenRouterAdapter, OllamaAdapter, ProviderRegistry, SecretStore } from "@nexus/ai-core";
+import { createCustomOpenAICompatibleAdapter, createGroqAdapter, createOpenRouterAdapter, OllamaAdapter, ProviderRegistry, SecretStore } from "@nexus/ai-core";
 import * as vscode from "vscode";
 
 const SECRET_PREFIX = "nexusAI.";
 export const GROQ_API_KEY = "providers.groq.default.apiKey";
 export const OPENROUTER_API_KEY = "providers.openrouter.default.apiKey";
+export const CUSTOM_OPENAI_API_KEY = "providers.custom-openai.default.apiKey";
 
 export class NexusSecretStore implements SecretStore {
     public constructor(private readonly secrets: vscode.SecretStorage) {}
@@ -26,5 +27,10 @@ export function createProviderRegistry(secretStore: NexusSecretStore): ProviderR
     registry.register(new OllamaAdapter());
     registry.register(createOpenRouterAdapter({ apiKey: () => secretStore.get(OPENROUTER_API_KEY) }));
     registry.register(createGroqAdapter({ apiKey: () => secretStore.get(GROQ_API_KEY) }));
+    registry.register(createCustomOpenAICompatibleAdapter({
+        baseUrl: () => vscode.workspace.getConfiguration("nexusAI.customOpenAI").get("baseUrl", "http://127.0.0.1:1234/v1").trim(),
+        displayName: "Custom OpenAI-Compatible",
+        apiKey: () => secretStore.get(CUSTOM_OPENAI_API_KEY),
+    }));
     return registry;
 }

@@ -1,13 +1,14 @@
-import { AuthStatus, CompletionRequest, CostClass, ModelDescriptor, ProviderAdapter, ProviderHealth, ProviderManifest, ProviderStreamEvent, SecretStore } from "./contracts";
+import { AuthStatus, CompletionRequest, CostClass, ModelDescriptor, ProviderAdapter, ProviderHealth, ProviderManifest, ProviderQuota, ProviderStreamEvent, SecretStore } from "./contracts";
 import { NexusError, errorFromResponse, normalizeError } from "./errors";
 import { sseJson } from "./streaming";
 
 export interface OpenAICompatibleOptions {
     id: string;
     displayName: string;
-    baseUrl: string;
+    baseUrl: string | (() => string);
     costClass: CostClass;
     apiKey?: () => Promise<string | undefined>;
+    authenticationRequired?: boolean;
     fetch?: typeof fetch;
     supportsTools?: boolean;
     supportsStructuredOutput?: boolean;
@@ -41,11 +42,11 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
     }
 
     public manifest(): ProviderManifest {
-        return { id: this.options.id, displayName: this.options.displayName, protocol: "openai-compatible", requiresAuthentication: Boolean(this.options.apiKey) };
+        return { id: this.options.id, displayName: this.options.displayName, protocol: "openai-compatible", requiresAuthentication: this.options.authenticationRequired ?? Boolean(this.options.apiKey) };
     }
 
     public async authenticate(_secretStore: SecretStore): Promise<AuthStatus> {
-        if (!this.options.apiKey) {
+        if (!this.options.apiKey || !this.options.authenticationRequired) {
             return { authenticated: true };
         }
         return { authenticated: Boolean(await this.options.apiKey()), message: "Configure this provider's API key in NexusIDE SecretStorage." };
@@ -95,6 +96,10 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
                 response_format: request.structuredOutput ? { type: "json_schema", json_schema: request.structuredOutput } : undefined,
             }),
         });
+        const quota = parseProviderQuota(response.headers);
+        if (quota) {
+            yield { type: "quota", quota };
+        }
 
         let completed = false;
         for await (const chunk of sseJson<OpenAIChunk>(response.body, signal)) {
@@ -119,7 +124,8 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
     private async fetch(path: string, init: RequestInit): Promise<Response> {
         try {
             const apiKey = await this.options.apiKey?.();
-            const response = await this.request(`${this.options.baseUrl.replace(/\/$/, "")}/${path}`, {
+            const baseUrl = typeof this.options.baseUrl === "function" ? this.options.baseUrl() : this.options.baseUrl;
+            const response = await this.request(`${baseUrl.replace(/\/$/, "")}/${path}`, {
                 ...init,
                 headers: {
                     ...this.options.headers,
@@ -193,4 +199,70 @@ function isVerifiedFreeOpenRouterModel(model: OpenAICompatibleModel): boolean {
 
 function isZeroPrice(value: string | undefined): boolean {
     return value !== undefined && value.trim() !== "" && Number(value) === 0;
+}
+
+export interface CustomOpenAICompatibleOptions extends Pick<OpenAICompatibleOptions, "apiKey" | "fetch" | "supportsTools" | "supportsStructuredOutput"> {
+    baseUrl: string | (() => string);
+    displayName?: string;
+    costClass?: "local" | "free-tier";
+}
+
+export function createCustomOpenAICompatibleAdapter(options: CustomOpenAICompatibleOptions): OpenAICompatibleAdapter {
+    return new OpenAICompatibleAdapter({
+        id: "custom-openai",
+        displayName: options.displayName?.trim() || "Custom OpenAI-Compatible",
+        baseUrl: options.baseUrl,
+        costClass: options.costClass ?? "local",
+        authenticationRequired: false,
+        supportsTools: options.supportsTools ?? true,
+        supportsStructuredOutput: options.supportsStructuredOutput ?? true,
+        apiKey: options.apiKey,
+        fetch: options.fetch,
+    });
+}
+
+export function parseProviderQuota(headers: Headers, now = Date.now()): ProviderQuota | undefined {
+    const remaining = firstNumber(headers, ["x-ratelimit-remaining-requests", "x-ratelimit-remaining"]);
+    const limit = firstNumber(headers, ["x-ratelimit-limit-requests", "x-ratelimit-limit"]);
+    const resetValue = firstHeader(headers, ["x-ratelimit-reset-requests", "x-ratelimit-reset"]);
+    if (remaining === undefined && limit === undefined && !resetValue) return undefined;
+    const resetsAt = resetValue ? parseReset(resetValue, now) : undefined;
+    const ratio = remaining !== undefined && limit !== undefined && limit > 0 ? remaining / limit : undefined;
+    return {
+        status: remaining !== undefined && remaining <= 0 ? "exhausted" : ratio !== undefined && ratio <= 0.2 ? "limited" : remaining !== undefined ? "available" : "unknown",
+        observedAt: new Date(now).toISOString(),
+        remaining,
+        limit,
+        resetsAt,
+    };
+}
+
+function firstHeader(headers: Headers, names: readonly string[]): string | undefined {
+    return names.map((name) => headers.get(name)?.trim()).find((value): value is string => Boolean(value));
+}
+
+function firstNumber(headers: Headers, names: readonly string[]): number | undefined {
+    const value = firstHeader(headers, names);
+    if (!value) return undefined;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
+function parseReset(value: string, now: number): string | undefined {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric) && numeric >= 0) {
+        const timestamp = numeric >= 1_000_000_000_000 ? numeric : numeric >= 1_000_000_000 ? numeric * 1_000 : now + numeric * 1_000;
+        const date = new Date(timestamp);
+        return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+    }
+    const absolute = Date.parse(value);
+    if (!Number.isNaN(absolute)) return new Date(absolute).toISOString();
+    let milliseconds = 0;
+    let matched = false;
+    for (const match of value.matchAll(/(\d+(?:\.\d+)?)(ms|h|m|s)/gi)) {
+        matched = true;
+        const amount = Number(match[1]);
+        milliseconds += amount * (match[2].toLowerCase() === "h" ? 3_600_000 : match[2].toLowerCase() === "m" ? 60_000 : match[2].toLowerCase() === "s" ? 1_000 : 1);
+    }
+    return matched ? new Date(now + milliseconds).toISOString() : undefined;
 }

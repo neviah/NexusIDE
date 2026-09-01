@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
+import { CompletionRouter } from "@nexus/ai-core";
 import { NexusChatViewProvider } from "./nexusChatViewProvider";
-import { createProviderRegistry, GROQ_API_KEY, NexusSecretStore, OPENROUTER_API_KEY } from "./providerRuntime";
+import { createProviderRegistry, CUSTOM_OPENAI_API_KEY, GROQ_API_KEY, NexusSecretStore, OPENROUTER_API_KEY } from "./providerRuntime";
 import { ReadOnlyChatRuntime } from "./readOnlyChatRuntime";
 import { ConversationStore } from "./conversationStore";
 import { NexusRouterViewProvider } from "./nexusRouterViewProvider";
@@ -8,6 +9,7 @@ import { RouteStackStore } from "./routeStackStore";
 import { WorkspaceContextCollector } from "./workspaceContext";
 import { OpenCodeHarness } from "./openCodeHarness";
 import { WorkspaceAgentHost } from "./workspaceAgentHost";
+import { ProviderStateStore } from "./providerStateStore";
 
 const VIEW_ID = "nexusAI.chat";
 const CONTAINER_ID = "workbench.view.extension.nexus-ai";
@@ -17,6 +19,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const secretStore = new NexusSecretStore(context.secrets);
     const providers = createProviderRegistry(secretStore);
     const routeStack = new RouteStackStore(context.workspaceState);
+    const providerState = new ProviderStateStore(context.globalState);
+    if (!providerState.has("custom-openai")) {
+        await providerState.configure("custom-openai", false, "Local or self-hosted endpoint; capacity is provider-defined.");
+    }
+    const completionRouter = new CompletionRouter({
+        onRouteFailure: (observation) => providerState.recordFailure(observation),
+        onQuota: (observation) => providerState.recordQuota(observation),
+    });
     const agentHost = new WorkspaceAgentHost();
     const openCodePath = vscode.workspace.getConfiguration("nexusAI").get("openCodePath", "").trim();
     const agentHarness = new OpenCodeHarness(agentHost, openCodePath || undefined, undefined, async () => {
@@ -39,16 +49,38 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             await vscode.window.showInformationMessage(`${provider} credentials stored securely.`);
         }
     };
+    const configureCustomEndpoint = async (): Promise<void> => {
+        const configuration = vscode.workspace.getConfiguration("nexusAI.customOpenAI");
+        const baseUrl = await vscode.window.showInputBox({
+            title: "Configure Custom OpenAI-Compatible Endpoint",
+            prompt: "Enter the API base URL ending in /v1.",
+            value: configuration.get("baseUrl", "http://127.0.0.1:1234/v1"),
+            ignoreFocusOut: true,
+            validateInput: validateProviderUrl,
+        });
+        if (!baseUrl) return;
+        await configuration.update("baseUrl", baseUrl.trim(), vscode.ConfigurationTarget.Global);
+        await providerState.configure("custom-openai", true, providerState.provider("custom-openai").quotaNote);
+        const apiKey = await vscode.window.showInputBox({
+            title: "Optional Custom Endpoint API Key",
+            prompt: "Leave empty when the endpoint does not require authentication.",
+            password: true,
+            ignoreFocusOut: true,
+        });
+        if (apiKey?.trim()) await secretStore.set(CUSTOM_OPENAI_API_KEY, apiKey.trim());
+        await vscode.window.showInformationMessage("Custom OpenAI-compatible endpoint configured.");
+    };
     const provider = new NexusChatViewProvider(
         context.extensionUri,
-        new ReadOnlyChatRuntime(providers, secretStore, routeStack),
+        new ReadOnlyChatRuntime(providers, secretStore, routeStack, completionRouter, providerState),
         new ConversationStore(context.workspaceState),
         new WorkspaceContextCollector(),
         agentHarness,
     );
-    const routerProvider = new NexusRouterViewProvider(context.extensionUri, providers, secretStore, routeStack, {
+    const routerProvider = new NexusRouterViewProvider(context.extensionUri, providers, secretStore, routeStack, providerState, {
         groq: { secretKey: GROQ_API_KEY, set: () => setProviderKey("Groq", GROQ_API_KEY) },
         openrouter: { secretKey: OPENROUTER_API_KEY, set: () => setProviderKey("OpenRouter", OPENROUTER_API_KEY) },
+        "custom-openai": { secretKey: CUSTOM_OPENAI_API_KEY, set: configureCustomEndpoint },
     });
 
     context.subscriptions.push(
@@ -74,6 +106,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             await secretStore.delete(OPENROUTER_API_KEY);
             await vscode.window.showInformationMessage("OpenRouter credentials removed.");
         }),
+        vscode.commands.registerCommand("nexusAI.configureCustomOpenAI", configureCustomEndpoint),
+        vscode.commands.registerCommand("nexusAI.deleteCustomOpenAIKey", async () => {
+            await secretStore.delete(CUSTOM_OPENAI_API_KEY);
+            await vscode.window.showInformationMessage("Custom endpoint credentials removed.");
+        }),
     );
 
     if (vscode.workspace.getConfiguration("nexusAI").get("openOnStartup", true)) {
@@ -83,3 +120,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 }
 
 export function deactivate(): void {}
+
+function validateProviderUrl(value: string): string | undefined {
+    try {
+        const url = new URL(value);
+        return url.protocol === "http:" || url.protocol === "https:" ? undefined : "Use an http:// or https:// URL.";
+    } catch {
+        return "Enter a valid absolute URL.";
+    }
+}

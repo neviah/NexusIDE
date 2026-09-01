@@ -3,7 +3,7 @@ import test from "node:test";
 import { CompletionRequest, ModelDescriptor, ProviderAdapter, ProviderManifest, ProviderStreamEvent, RouteCandidate } from "../contracts";
 import { NexusError, errorFromResponse, normalizeError } from "../errors";
 import { OllamaAdapter } from "../ollama";
-import { OpenAICompatibleAdapter, createGroqAdapter, createOpenRouterAdapter } from "../openAiCompatible";
+import { OpenAICompatibleAdapter, createCustomOpenAICompatibleAdapter, createGroqAdapter, createOpenRouterAdapter, parseProviderQuota } from "../openAiCompatible";
 import { redactOperationalValue, redactText } from "../redaction";
 import { CompletionRouter, eligibleCandidates } from "../router";
 import { sseJson } from "../streaming";
@@ -49,6 +49,33 @@ test("OpenAI-compatible and Ollama model discovery normalize into one descriptor
     assert.deepEqual({ id: localModel.id, cost: localModel.costClass, structured: localModel.supportsStructuredOutput }, { id: "local-model:latest", cost: "local", structured: true });
 });
 
+test("custom OpenAI-compatible endpoints allow optional auth and default to local cost", async () => {
+    const adapter = createCustomOpenAICompatibleAdapter({
+        baseUrl: "http://127.0.0.1:1234/v1",
+        apiKey: async () => undefined,
+        fetch: async () => Response.json({ data: [{ id: "local-model" }] }),
+    });
+    assert.equal((await adapter.authenticate({ get: async () => undefined, set: async () => undefined, delete: async () => undefined })).authenticated, true);
+    assert.equal((await adapter.listModels(new AbortController().signal))[0].costClass, "local");
+});
+
+test("provider quota headers normalize remaining requests and reset durations", () => {
+    const quota = parseProviderQuota(new Headers({
+        "x-ratelimit-limit-requests": "100",
+        "x-ratelimit-remaining-requests": "10",
+        "x-ratelimit-reset-requests": "1m30s",
+    }), Date.parse("2026-09-01T00:00:00.000Z"));
+    assert.deepEqual(quota, {
+        status: "limited",
+        observedAt: "2026-09-01T00:00:00.000Z",
+        remaining: 10,
+        limit: 100,
+        resetsAt: "2026-09-01T00:01:30.000Z",
+    });
+    assert.equal(parseProviderQuota(new Headers()), undefined);
+    assert.equal(parseProviderQuota(new Headers({ "x-ratelimit-reset": "1788220800000" }), 0)?.resetsAt, "2026-09-01T00:00:00.000Z");
+});
+
 test("free-first routing retries transient failures then falls back in deterministic order", async () => {
     const calls: string[] = [];
     const local = fakeAdapter("local", async function* () {
@@ -61,7 +88,14 @@ test("free-first routing retries transient failures then falls back in determini
         yield { type: "done" };
     });
     const waits: number[] = [];
-    const router = new CompletionRouter({ maxAttemptsPerRoute: 2, maxTotalRetryDelayMs: 100, sleep: async (milliseconds) => { waits.push(milliseconds); } });
+    const failures: Array<{ providerId: string; cooldownUntil?: string }> = [];
+    const router = new CompletionRouter({
+        maxAttemptsPerRoute: 2,
+        maxTotalRetryDelayMs: 100,
+        sleep: async (milliseconds) => { waits.push(milliseconds); },
+        now: () => Date.parse("2026-09-01T00:00:00.000Z"),
+        onRouteFailure: (failure) => { failures.push(failure); },
+    });
 
     const events = await collect(router.stream({
         runId: "run-1",
@@ -72,7 +106,21 @@ test("free-first routing retries transient failures then falls back in determini
     assert.deepEqual(calls, ["local", "local", "cloud"]);
     assert.deepEqual(waits, [25]);
     assert.equal(events.find((event) => event.type === "fallback")?.type, "fallback");
+    assert.equal(events.some((event) => event.type === "route-cooldown"), true);
+    assert.equal(failures.at(-1)?.cooldownUntil, "2026-09-01T00:01:00.000Z");
     assert.equal(events.at(-2)?.type, "text-delta");
+});
+
+test("active cooldowns and exhausted quotas are ineligible", () => {
+    const adapter = fakeAdapter("cloud", async function* () { yield { type: "done" }; });
+    const active = candidate(adapter, "free-tier");
+    active.cooldownUntil = "2026-09-01T00:01:00.000Z";
+    const exhausted = candidate(adapter, "free-tier");
+    exhausted.model = { ...exhausted.model, id: "exhausted" };
+    exhausted.quota = { status: "exhausted", observedAt: "2026-09-01T00:00:00.000Z" };
+    const ready = candidate(adapter, "free-tier");
+    ready.model = { ...ready.model, id: "ready" };
+    assert.deepEqual(eligibleCandidates({ runId: "run", messages: [], candidates: [active, exhausted, ready] }, Date.parse("2026-09-01T00:00:30.000Z")).map(({ model }) => model.id), ["ready"]);
 });
 
 test("paid and trial routes require exact consent", () => {

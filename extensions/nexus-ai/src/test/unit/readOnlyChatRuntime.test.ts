@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+    CompletionRouter,
     ModelDescriptor,
     NexusError,
     ProviderAdapter,
@@ -11,6 +12,7 @@ import {
 } from "@nexus/ai-core";
 import { ReadOnlyChatRuntime } from "../../readOnlyChatRuntime";
 import { RouteStackStore } from "../../routeStackStore";
+import { ProviderStateStore } from "../../providerStateStore";
 
 const secretStore: SecretStore = {
     get: async () => undefined,
@@ -74,6 +76,65 @@ test("configured stack order overrides local-first scoring", async () => {
     const runtime = new ReadOnlyChatRuntime(registry, secretStore, stack);
     const events = await collect(runtime.stream({ runId: "run-4", prompt: "Hello", mode: "ask", modelSelection: "auto" }, new AbortController().signal));
     assert.equal(events.find((event) => event.type === "route-attempt")?.providerId, "openrouter");
+});
+
+test("disabled and cooling-down providers are excluded from discovery", async () => {
+    const calls: string[][] = [];
+    const registry = new ProviderRegistry();
+    registry.register(adapter("disabled", "free-tier", calls));
+    registry.register(adapter("cooling", "free-tier", calls));
+    registry.register(adapter("ready", "free-tier", calls));
+    let state: unknown;
+    const providerState = new ProviderStateStore({
+        get: <T>(_key: string, fallback: T) => (state ?? fallback) as T,
+        update: async (_key: string, value: unknown) => { state = value; },
+    });
+    await providerState.configure("disabled", false);
+    await providerState.recordFailure({
+        providerId: "cooling",
+        modelId: "cooling-model",
+        code: "rate-limited",
+        observedAt: new Date().toISOString(),
+        cooldownUntil: new Date(Date.now() + 60_000).toISOString(),
+    });
+    const runtime = new ReadOnlyChatRuntime(registry, secretStore, undefined, new CompletionRouter({ maxAttemptsPerRoute: 1 }), providerState);
+    const events = await collect(runtime.stream({ runId: "state", prompt: "hello", mode: "ask", modelSelection: "auto" }, new AbortController().signal));
+    assert.equal(events.some((event) => event.type === "route-attempt" && event.providerId === "ready"), true);
+    assert.equal(events.some((event) => event.type === "text-delta" && event.text === "ready reply"), true);
+    assert.equal(calls.length, 1);
+});
+
+test("a throttled free route falls back once and is skipped on the next request", async () => {
+    let state: unknown;
+    let throttledCalls = 0;
+    const providerState = new ProviderStateStore({
+        get: <T>(_key: string, fallback: T) => (state ?? fallback) as T,
+        update: async (_key: string, value: unknown) => { state = value; },
+    });
+    const throttled: ProviderAdapter = {
+        ...adapter("throttled", "local", []),
+        stream: async function* (): AsyncGenerator<ProviderStreamEvent> {
+            throttledCalls += 1;
+            throw new NexusError({ code: "rate-limited", message: "limited", retryable: true });
+        },
+    };
+    const registry = new ProviderRegistry();
+    registry.register(throttled);
+    registry.register(adapter("fallback", "free-tier", []));
+    const router = new CompletionRouter({
+        maxAttemptsPerRoute: 1,
+        onRouteFailure: (observation) => providerState.recordFailure(observation),
+        onQuota: (observation) => providerState.recordQuota(observation),
+    });
+    const runtime = new ReadOnlyChatRuntime(registry, secretStore, undefined, router, providerState);
+
+    const first = await collect(runtime.stream({ runId: "first", prompt: "hello", mode: "ask", modelSelection: "auto" }, new AbortController().signal));
+    const second = await collect(runtime.stream({ runId: "second", prompt: "again", mode: "ask", modelSelection: "auto" }, new AbortController().signal));
+
+    assert.equal(first.some((event) => event.type === "fallback" && event.toProviderId === "fallback"), true);
+    assert.equal(second.some((event) => event.type === "route-attempt" && event.providerId === "throttled"), false);
+    assert.equal(second.find((event) => event.type === "route-attempt")?.providerId, "fallback");
+    assert.equal(throttledCalls, 1);
 });
 
 function adapter(id: string, costClass: ModelDescriptor["costClass"], requests: string[][]): ProviderAdapter {

@@ -4,7 +4,7 @@ Last updated: 2026-09-01
 
 ## Current Milestone
 
-Phase 5: expand free-first routing and provider configuration after completing the OpenCode reference harness.
+Phase 6: evaluate candidate coding harnesses against the OpenCode conformance baseline.
 
 ## Completed
 
@@ -40,10 +40,15 @@ Phase 5: expand free-first routing and provider configuration after completing t
 - OpenCode receives Nexus-held Groq and OpenRouter credentials only through its supervised process environment; emitted values are redacted before reaching the webview or audit.
 - Agent model selection occurs through ACP before prompting and permits Ollama, Groq free-tier, or explicit OpenRouter `:free` choices; paid defaults fail closed.
 - OpenCode ACP v1 initialization, session creation, and explicit free-model selection pass model-free runtime smoke tests on Windows.
+- Free-first routing persists rate-limit cooldowns and provider quota observations, excludes exhausted or cooling routes, and falls back without retrying a throttled route on the next request.
+- Provider discovery uses health checks, model capabilities, cost class, user priority, quota state, and cooldown state while paid, trial, and unverified mixed routes remain ineligible by default.
+- The Nexus Router view exposes provider enablement, health and latency, checked time, quota/reset state, cooldowns, user quota notes, credential refresh, and explicit Auto stack ordering.
+- A disabled-by-default custom OpenAI-compatible provider supports loopback, self-hosted, and local gateway URLs with an optional SecretStorage API key.
+- Tier 2 provider candidates remain deferred until each provider-specific authentication, catalog, quota, desktop-use terms, and mocked contract satisfy the admission checklist.
 
 ## Next
 
-- Begin Phase 5 provider discovery, health, quota metadata, and Router UI expansion.
+- Begin Phase 6 conformance evaluation for candidate coding harnesses; do not expose a candidate in Agent mode before it passes the full suite.
 
 ## Phase 0 Exit Gate
 
@@ -84,3 +89,10 @@ Phase 5: expand free-first routing and provider configuration after completing t
 - [x] The conformance agent performs a two-file change, opens both diffs, reports an approved failed validation, and recovers with a passing validation.
 - [x] Cancellation terminates supervised work, prevents subsequent tool activity, and persists a coherent audit summary.
 - [x] Relative, traversal, sibling-prefix, device, alternate-stream, symlink, junction, and outside-workspace paths fail closed.
+
+## Phase 5 Exit Gate
+
+- [x] A throttled free route persists cooldown state, falls back transparently, and is skipped on the next request.
+- [x] Default routing admits local and verified free-tier routes only; paid, trial, and unverified mixed routes require exact consent.
+- [x] Provider transport, quota, cooldown, state, and fallback tests use deterministic mocks and require no paid API calls.
+- [x] Router UI describes provider quota as observed, limited, user-entered, or Unknown and never claims unlimited cloud access.
