@@ -1,10 +1,12 @@
 import * as vscode from "vscode";
+import { normalizeError } from "@nexus/ai-core";
+import { ModelSelection, ReadOnlyChatRuntime } from "./readOnlyChatRuntime";
 
 type ChatMode = "ask" | "agent" | "design";
 
 type WebviewMessage =
     | { type: "ready" }
-    | { type: "send"; prompt: string; mode: ChatMode; harness: string; model: string }
+    | { type: "send"; prompt: string; mode: ChatMode; harness: string; model: ModelSelection }
     | { type: "stop" };
 
 export class NexusChatViewProvider implements vscode.WebviewViewProvider {
@@ -13,7 +15,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
 
     public constructor(
         private readonly extensionUri: vscode.Uri,
-        private readonly providerNames: readonly string[],
+        private readonly chatRuntime: ReadOnlyChatRuntime,
     ) {}
 
     public resolveWebviewView(view: vscode.WebviewView): void {
@@ -29,7 +31,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
 
     private async handleMessage(message: WebviewMessage): Promise<void> {
         if (message.type === "ready") {
-            await this.post({ type: "status", text: `Ready / ${this.providerNames.join(" + ")}`, tone: "ready" });
+            await this.post({ type: "status", text: `Ready / ${this.chatRuntime.providerNames().join(" + ")}`, tone: "ready" });
             return;
         }
 
@@ -52,7 +54,43 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
             meta: `${label(message.mode)} / ${message.harness} / ${message.model}`,
         });
 
-        const response = mockResponse(message.mode, message.harness, message.model);
+        if (message.mode === "agent") {
+            await this.streamAgentPlaceholder(message.harness, message.model, run);
+            return;
+        }
+
+        let route = "No route selected";
+        try {
+            for await (const event of this.chatRuntime.stream({
+                runId: `${Date.now()}`,
+                prompt: message.prompt.trim(),
+                mode: message.mode,
+                modelSelection: message.model,
+            }, run.signal)) {
+                if (event.type === "text-delta") {
+                    await this.post({ type: "delta", text: event.text });
+                } else if (event.type === "route-attempt") {
+                    route = `${event.providerId} / ${event.modelId}`;
+                    await this.post({ type: "status", text: `Generating / ${route}` });
+                } else if (event.type === "fallback") {
+                    route = `${event.fromProviderId} / ${event.fromModelId} -> ${event.toProviderId} / ${event.toModelId} (${event.reason})`;
+                }
+            }
+            await this.post({ type: "runDone", route });
+        } catch (error) {
+            const normalized = normalizeError(error);
+            await this.post(normalized.code === "aborted"
+                ? { type: "runStopped" }
+                : { type: "runError", text: normalized.message, route });
+        } finally {
+            if (this.activeRun === run) {
+                this.activeRun = undefined;
+            }
+        }
+    }
+
+    private async streamAgentPlaceholder(harness: string, model: ModelSelection, run: AbortController): Promise<void> {
+        const response = `Agent mode is reserved for the ${harness} harness with ${modelLabel(model)} routing. It cannot modify files or run commands until the Phase 4 trust, approval, diff, and cancellation contracts are active.`;
         for (const token of response.split(/(\s+)/)) {
             if (run.signal.aborted) {
                 await this.post({ type: "runStopped" });
@@ -61,11 +99,8 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
             await this.post({ type: "delta", text: token });
             await delay(22);
         }
-
-        if (this.activeRun === run) {
-            this.activeRun = undefined;
-        }
-        await this.post({ type: "runDone", route: "Prototype route / no provider request" });
+        this.activeRun = undefined;
+        await this.post({ type: "runDone", route: "Agent tools disabled / Phase 4" });
     }
 
     private post(message: unknown): Thenable<boolean> {
@@ -124,7 +159,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
             </div>
             <div class="selectors">
                 <label>Harness<select id="harness"><option value="OpenCode">OpenCode</option><option value="FreeCode" disabled>FreeCode (pending)</option><option value="Free Claude Code" disabled>Free Claude Code (pending)</option></select></label>
-                <label>Model<select id="model"><option value="Auto / free-first">Auto / free-first</option><option value="Ollama / local">Ollama / local</option></select></label>
+                <label>Model<select id="model"><option value="auto">Auto / free-first</option><option value="ollama">Ollama / local</option></select></label>
             </div>
         </section>
         <section id="transcript" class="transcript" aria-live="polite">
@@ -200,6 +235,12 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
                 if (routes.length) routes[routes.length - 1].textContent = message.route;
                 finish('Ready');
             }
+            if (message.type === 'runError') {
+                if (responseNode) responseNode.textContent = message.text;
+                const routes = transcript.querySelectorAll('.route');
+                if (routes.length) routes[routes.length - 1].textContent = message.route;
+                finish('Error');
+            }
             if (message.type === 'runStopped') finish('Stopped');
         });
 
@@ -222,14 +263,8 @@ function label(mode: ChatMode): string {
     return mode === "ask" ? "Ask" : mode === "agent" ? "Agent" : "Design";
 }
 
-function mockResponse(mode: ChatMode, harness: string, model: string): string {
-    if (mode === "agent") {
-        return `Agent mode is wired to ${harness} with ${model}. This prototype does not modify files yet; workspace trust, approval, diff, and cancellation contracts come before live tool execution.`;
-    }
-    if (mode === "design") {
-        return `Design mode is read-only. I would inspect the relevant workspace context, state assumptions, and return a phased implementation plan before any edits are allowed.`;
-    }
-    return `Ask mode is read-only and ready for workspace-grounded questions. The next phase replaces this mock stream with the Nexus free-first provider contract.`;
+function modelLabel(model: ModelSelection): string {
+    return model === "ollama" ? "Ollama / local" : "Auto / free-first";
 }
 
 function delay(milliseconds: number): Promise<void> {

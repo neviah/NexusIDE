@@ -27,11 +27,13 @@ Phase 3: replace mock responses with routed Ask and Design streams.
 - NexusIDE brand assets are generated deterministically for the Windows executable, tiles, and bundled Nexus AI view.
 - Native-surface integration tests exercise editing, Explorer, search, terminal, Git/SCM, settings, debugger, and Nexus AI in Code-OSS.
 - The unsigned Windows x64 artifact bundles Nexus AI, preserves a portable `data` directory in its ZIP, and runs with the `NexusIDE` product identity.
+- Ask and Design discover configured Ollama and Groq models and stream through the free-first router with visible route and fallback metadata.
+- Agent mode remains read-only and does not invoke providers or tools before the Phase 4 harness boundary is implemented.
 
 ## In Progress
 
-- Replace the prototype response with routed Ask and Design streams.
 - Add conversation persistence and workspace context attachments.
+- Add conversation controls including Regenerate.
 
 ## Next
 

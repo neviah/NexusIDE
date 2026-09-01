@@ -29,6 +29,11 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "Nexus AI compilation failed."
     }
+
+    & npm.cmd test
+    if ($LASTEXITCODE -ne 0) {
+        throw "Nexus AI unit tests failed."
+    }
 } finally {
     Pop-Location
 }

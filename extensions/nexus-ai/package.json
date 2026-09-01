@@ -18,7 +18,8 @@
   "main": "./out/extension.js",
   "scripts": {
     "check": "tsc --noEmit",
-    "compile": "tsc"
+    "compile": "tsc",
+    "test": "node --test out/test/unit/*.test.js"
   },
   "dependencies": {
     "@nexus/ai-core": "file:../../packages/ai-core"
