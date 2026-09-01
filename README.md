@@ -53,7 +53,9 @@ Set-Location NexusIDE
 ./scripts/bootstrap.ps1
 ./scripts/compile-code-oss.ps1
 ./scripts/build-nexus-ai.ps1
+./scripts/test-nexus-ai.ps1
 ./scripts/launch-code-oss.ps1 -WithNexusAI
+./scripts/build-portable.ps1
 ```
 
 The bootstrap downloads the exact Code-OSS Node.js version into `.tools/` when the system Node is incompatible. It does not replace the user's global Node installation.
@@ -62,4 +64,4 @@ The bootstrap downloads the exact Code-OSS Node.js version into `.tools/` when t
 
 ## Status
 
-Phases 0 and 2 are complete. Phase 1 branding and packaging validation continues alongside the Phase 3 Ask and Design experience.
+Phases 0, 1, and 2 are complete. Phase 3 Ask and Design integration is in progress.

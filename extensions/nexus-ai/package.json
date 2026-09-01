@@ -57,7 +57,7 @@
         {
           "id": "nexus-ai",
           "title": "Nexus AI",
-          "icon": "$(sparkle)"
+          "icon": "media/nexuside.svg"
         }
       ]
     },
@@ -67,7 +67,7 @@
           "type": "webview",
           "id": "nexusAI.chat",
           "name": "Chat",
-          "icon": "$(comment-discussion)",
+          "icon": "media/nexuside.svg",
           "visibility": "visible",
           "accessibilityHelpContent": "Use the mode, harness, and model controls to configure a conversation. Ask and Design are read-only. Agent capabilities require workspace trust and explicit approval."
         }

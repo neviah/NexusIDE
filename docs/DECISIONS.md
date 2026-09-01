@@ -97,3 +97,13 @@ This log records decisions that materially affect scope, maintenance, security, 
 **Reason:** They do not support the product's pure coding scope and would increase dependencies and startup complexity.
 
 **Consequence:** C#/Unity editing and debugging remain in scope as coding workflows.
+
+## ADR-011: Apply Product Branding As A Build Overlay
+
+**Status:** Accepted
+
+**Decision:** Keep NexusIDE product configuration and brand assets in the root repository. Packaging temporarily merges them into the clean Code-OSS worktree, runs the upstream package task, and restores every upstream file byte-for-byte in a `finally` block.
+
+**Reason:** Upstream development supports `product.overrides.json`, but packaged builds consume `product.json` and Windows resources directly. A deterministic overlay preserves the pinned submodule while using the upstream packaging pipeline.
+
+**Consequence:** Packaging fails closed when the submodule has tracked changes. No Code-OSS workbench source modification is required.

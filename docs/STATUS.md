@@ -4,7 +4,7 @@ Last updated: 2026-09-01
 
 ## Current Milestone
 
-Phase 3: Ask and Design experience, with remaining Phase 1 packaging work tracked separately.
+Phase 3: replace mock responses with routed Ask and Design streams.
 
 ## Completed
 
@@ -24,17 +24,18 @@ Phase 3: Ask and Design experience, with remaining Phase 1 packaging work tracke
 - Ollama and Groq stream through the normalized provider API using injected, deterministic contract fixtures.
 - The extension registers Ollama and Groq while keeping Groq credentials exclusively in VS Code SecretStorage.
 - Core contract tests cover bounded retries, deterministic fallback, paid-route blocking, cancellation, malformed streams, 401/403, 408, 429, 5xx, fallback exhaustion, and secret redaction.
+- NexusIDE brand assets are generated deterministically for the Windows executable, tiles, and bundled Nexus AI view.
+- Native-surface integration tests exercise editing, Explorer, search, terminal, Git/SCM, settings, debugger, and Nexus AI in Code-OSS.
+- The unsigned Windows x64 artifact bundles Nexus AI, preserves a portable `data` directory in its ZIP, and runs with the `NexusIDE` product identity.
 
 ## In Progress
 
-- Create development brand assets and a portable artifact path.
-- Verify native IDE surfaces under the NexusIDE product identity.
 - Replace the prototype response with routed Ask and Design streams.
+- Add conversation persistence and workspace context attachments.
 
 ## Next
 
-- Package the Nexus AI extension as a bundled extension.
-- Add conversation persistence and workspace context attachments.
+- Add the OpenCode harness behind the Agent mode boundary.
 
 ## Phase 0 Exit Gate
 
@@ -49,9 +50,10 @@ Phase 3: Ask and Design experience, with remaining Phase 1 packaging work tracke
 ## Phase 1 Exit Gate
 
 - [x] NexusIDE and VS Code use isolated product data.
-- [ ] Explorer, editor, search, terminal, source control, settings, and debugger remain functional.
+- [x] Explorer, editor, search, terminal, source control, settings, and debugger remain functional.
 - [x] Nexus AI mock streaming view runs in the Secondary Side Bar.
 - [x] Workbench source modifications are listed in the decision log (none required).
+- [x] Branded unsigned Windows x64 portable artifact builds and launches with Nexus AI bundled.
 
 ## Phase 2 Exit Gate
 
