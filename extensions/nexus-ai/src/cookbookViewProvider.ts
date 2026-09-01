@@ -11,8 +11,8 @@ export class CookbookViewProvider implements vscode.WebviewViewProvider {
     public resolveWebviewView(view: vscode.WebviewView): void {
         this.view = view;
         view.webview.options = { enableScripts: true };
-        view.webview.html = this.html(view.webview);
         view.webview.onDidReceiveMessage((message: CookbookMessage) => void this.handle(message));
+        view.webview.html = this.html(view.webview);
     }
 
     private async handle(message: CookbookMessage): Promise<void> {

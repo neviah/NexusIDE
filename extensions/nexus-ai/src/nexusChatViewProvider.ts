@@ -43,15 +43,14 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
             enableScripts: true,
             localResourceRoots: [this.extensionUri],
         };
-        view.webview.html = this.getHtml(view.webview);
         view.webview.onDidReceiveMessage((message: WebviewMessage) => this.handleMessage(message));
         view.onDidDispose(() => this.activeRun?.abort());
+        view.webview.html = this.getHtml(view.webview);
     }
 
     private async handleMessage(message: WebviewMessage): Promise<void> {
         if (message.type === "ready") {
-            await this.postConversation();
-            await this.post({ type: "status", text: `Ready / ${this.chatRuntime.providerNames().join(" + ")}`, tone: "ready" });
+            await this.initializeView();
             return;
         }
 
@@ -116,6 +115,11 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         }
 
         await this.runPrompt(message, false);
+    }
+
+    private async initializeView(): Promise<void> {
+        await this.postConversation();
+        await this.post({ type: "status", text: `Ready / ${this.chatRuntime.providerNames().join(" + ")}`, tone: "ready" });
     }
 
     private async runPrompt(message: Extract<WebviewMessage, { type: "send" }>, replaceLast: boolean): Promise<void> {
@@ -320,13 +324,13 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         body { margin: 0; min-width: 230px; color: var(--vscode-foreground); background: var(--vscode-sideBar-background); font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); }
         button, textarea, select { font: inherit; }
         .shell { min-height: 100vh; display: grid; grid-template-rows: auto 1fr auto; }
-        .topbar { padding: 10px 12px; border-bottom: 1px solid var(--vscode-sideBar-border, var(--vscode-widget-border)); background: var(--vscode-sideBar-background); }
+        .topbar { padding: 11px 12px; border-top: 2px solid var(--vscode-focusBorder); border-bottom: 1px solid var(--vscode-sideBar-border, var(--vscode-widget-border)); background: var(--vscode-sideBarSectionHeader-background, var(--vscode-sideBar-background)); }
         .conversation-bar { height: 28px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
         .conversation-bar select { min-width: 0; flex: 1; margin-right: 6px; }
         .conversation-actions { display: flex; gap: 3px; }
         .tool-button { width: 26px; height: 26px; padding: 0; border: 0; border-radius: 3px; color: var(--vscode-foreground); background: transparent; cursor: pointer; font-size: 16px; }
         .tool-button:hover { background: var(--vscode-toolbar-hoverBackground); }
-        .mode { display: grid; grid-template-columns: repeat(3, 1fr); height: 30px; padding: 2px; background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); border-radius: 4px; }
+        .mode { display: grid; grid-template-columns: repeat(3, 1fr); height: 32px; padding: 2px; background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); border-radius: 4px; }
         .mode button { border: 0; border-radius: 3px; color: var(--vscode-descriptionForeground); background: transparent; cursor: pointer; }
         .mode button[aria-pressed="true"] { color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
         .selectors { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
@@ -336,7 +340,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         .quality input[type="text"] { width: 100%; height: 28px; padding: 0 6px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); }
         label { display: grid; gap: 4px; color: var(--vscode-descriptionForeground); font-size: 11px; }
         select { width: 100%; height: 28px; padding: 0 6px; color: var(--vscode-dropdown-foreground); background: var(--vscode-dropdown-background); border: 1px solid var(--vscode-dropdown-border); border-radius: 2px; }
-        .transcript { min-height: 0; overflow-y: auto; padding: 14px 12px 24px; }
+        .transcript { min-height: 0; overflow-y: auto; padding: 18px 14px 26px; background: var(--vscode-editor-background); }
         .empty { height: 100%; min-height: 220px; display: grid; place-content: center; gap: 7px; text-align: center; color: var(--vscode-descriptionForeground); }
         .mark { width: 36px; height: 36px; margin: 0 auto 4px; display: grid; place-items: center; border: 1px solid var(--vscode-focusBorder); color: var(--vscode-focusBorder); border-radius: 6px; font-size: 20px; }
         .empty strong { color: var(--vscode-foreground); font-weight: 600; }
@@ -346,7 +350,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         .assistant { padding-left: 10px; border-left: 2px solid var(--vscode-focusBorder); }
         .activity { margin-top: 9px; padding: 7px; max-height: 150px; overflow: auto; border: 1px solid var(--vscode-widget-border); background: var(--vscode-textCodeBlock-background); color: var(--vscode-descriptionForeground); font-family: var(--vscode-editor-font-family); font-size: 11px; white-space: pre-wrap; }
         .route { margin-top: 9px; color: var(--vscode-descriptionForeground); font-size: 11px; }
-        .composer { padding: 10px 12px 12px; border-top: 1px solid var(--vscode-sideBar-border, var(--vscode-widget-border)); background: var(--vscode-sideBar-background); }
+        .composer { padding: 12px; border-top: 1px solid var(--vscode-sideBar-border, var(--vscode-widget-border)); background: var(--vscode-sideBarSectionHeader-background, var(--vscode-sideBar-background)); }
         .input-wrap { border: 1px solid var(--vscode-input-border, var(--vscode-widget-border)); background: var(--vscode-input-background); border-radius: 4px; }
         .input-wrap:focus-within { border-color: var(--vscode-focusBorder); }
         textarea { width: 100%; min-height: 68px; max-height: 180px; resize: vertical; padding: 9px 10px; color: var(--vscode-input-foreground); background: transparent; border: 0; outline: 0; line-height: 1.45; }

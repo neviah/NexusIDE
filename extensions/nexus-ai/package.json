@@ -119,6 +119,14 @@
       "nexus-router": [
         {
           "type": "webview",
+          "id": "nexusRouter.stack",
+          "name": "Auto Stack",
+          "icon": "$(layers)",
+          "visibility": "visible",
+          "accessibilityHelpContent": "Review the ordered automatic fallback stack, provider health and observed quota usage. Reorder or remove models with the controls in each row."
+        },
+        {
+          "type": "webview",
           "id": "nexusRouter.providers",
           "name": "Providers and Models",
           "icon": "media/nexuside.svg",

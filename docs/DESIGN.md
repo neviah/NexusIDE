@@ -95,6 +95,8 @@ The first implementation should run routing in the extension host unless a concr
 
 The layout is a default, not a locked arrangement. Users retain native resize, move, hide, and keyboard behavior.
 
+Nexus-owned sidebars use a compact operational-dashboard treatment within native workbench panes. The Router container places the ordered Auto Stack above provider configuration so route health, observed request usage, provider identity, and fallback order remain visible without adding another Activity Bar destination.
+
 ### 5.2 Chat Composer
 
 The composer includes:
@@ -211,6 +213,7 @@ Agent commits and pushes always require explicit approval in the first release. 
 
 - API keys and tokens: VS Code SecretStorage only.
 - Provider configuration: global extension storage.
+- Ordered fallback stack: global extension storage so it follows the user across workspaces.
 - Conversation state: workspace-scoped extension storage.
 - Route health cache: global extension storage with expiration.
 - Audit records: local, bounded, redacted, and user-clearable.

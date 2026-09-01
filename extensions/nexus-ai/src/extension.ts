@@ -14,10 +14,12 @@ import { showLanguageToolingReport } from "./languageTooling";
 import { buildSupportDiagnostics } from "./supportDiagnostics";
 import { StartupRecovery } from "./startupRecovery";
 import { CookbookViewProvider } from "./cookbookViewProvider";
+import { RouteStackViewProvider } from "./routeStackViewProvider";
 
 const VIEW_ID = "nexusAI.chat";
 const CONTAINER_ID = "workbench.view.extension.nexus-ai";
 const ROUTER_VIEW_ID = "nexusRouter.providers";
+const STACK_VIEW_ID = "nexusRouter.stack";
 const COOKBOOK_VIEW_ID = "nexusCookbook.models";
 let startupRecovery: StartupRecovery | undefined;
 
@@ -29,7 +31,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
     const secretStore = new NexusSecretStore(context.secrets);
     const providers = createProviderRegistry(secretStore);
-    const routeStack = new RouteStackStore(context.workspaceState);
+    const routeStack = new RouteStackStore(context.globalState);
     const providerState = new ProviderStateStore(context.globalState);
     if (!providerState.has("custom-openai")) {
         await providerState.configure("custom-openai", false, "Local or self-hosted endpoint; capacity is provider-defined.");
@@ -95,14 +97,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         "custom-openai": { secretKey: CUSTOM_OPENAI_API_KEY, set: configureCustomEndpoint },
     });
     const cookbookProvider = new CookbookViewProvider();
+    const stackProvider = new RouteStackViewProvider(providers, routeStack, providerState);
 
     context.subscriptions.push(
         agentHost,
+        stackProvider,
         languageToolingOutput,
         vscode.window.registerWebviewViewProvider(VIEW_ID, provider, {
             webviewOptions: { retainContextWhenHidden: true },
         }),
         vscode.window.registerWebviewViewProvider(ROUTER_VIEW_ID, routerProvider),
+        vscode.window.registerWebviewViewProvider(STACK_VIEW_ID, stackProvider),
         vscode.window.registerWebviewViewProvider(COOKBOOK_VIEW_ID, cookbookProvider),
         vscode.commands.registerCommand("nexusAI.open", async () => {
             await vscode.commands.executeCommand(CONTAINER_ID);

@@ -18,6 +18,13 @@ if ((Test-Path (Join-Path $portableNodeDirectory "node.exe")) -and -not (($env:P
     $env:Path = "$portableNodeDirectory;$env:Path"
 }
 
+if ($WithNexusAI) {
+    & (Join-Path $PSScriptRoot "build-nexus-ai.ps1")
+    if ($LASTEXITCODE -ne 0) {
+        throw "Nexus AI build failed."
+    }
+}
+
 $env:vs2022_install = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools"
 & (Join-Path $PSScriptRoot "check-prerequisites.ps1")
 if ($LASTEXITCODE -ne 0) {
