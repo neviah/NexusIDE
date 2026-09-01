@@ -122,12 +122,12 @@ Switching modes changes enforced capabilities, not merely the system prompt.
 ### 6.1 Launch Set
 
 - OpenCode: required launch target.
-- FreeCode: candidate pending conformance.
-- Free Claude Code: candidate pending conformance and confirmation that it is not operationally redundant.
+- FreeCode: rejected because no authoritative executable or machine contract could be identified.
+- Free Claude Code: rejected because no distinct product could be identified; official Claude Code does not establish a permanent free harness and would require a separate proprietary CLI adapter.
 - Hermes: excluded from launch scope.
 - OpenClaw: excluded from launch scope.
 
-NexusOS currently marks FreeCode, Free Claude Code, and OpenCode as its coding-focused set. Its generic chat adapter does not prove shell execution, patch application, cancellation, or change reporting, so NexusIDE independently verifies those capabilities.
+Phase 6 evaluated the names inherited from NexusOS and admitted no additional harness. See [HARNESSES.md](HARNESSES.md) for the evidence and reconsideration criteria. Generic chat configuration does not prove shell execution, patch application, cancellation, or change reporting.
 
 ### 6.2 Required Operations
 

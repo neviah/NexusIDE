@@ -42,11 +42,11 @@ This log records decisions that materially affect scope, maintenance, security, 
 
 **Status:** Accepted
 
-**Decision:** OpenCode is required. FreeCode and Free Claude Code are candidates pending conformance. Hermes and OpenClaw are excluded from launch scope.
+**Decision:** OpenCode is the sole admitted launch harness. FreeCode is rejected because no authoritative runtime contract could be identified. Free Claude Code is rejected because no distinct product could be identified and official Claude Code does not establish a permanent free harness. Hermes and OpenClaw remain excluded.
 
-**Reason:** NexusOS explicitly identifies OpenCode, FreeCode, and Free Claude Code as coding-focused. Existing generic chat endpoint configuration does not prove coding operations for Hermes or OpenClaw.
+**Reason:** Phase 6 applied identity, capability, deterministic conformance, and smoke gates. Only OpenCode reached and passed all gates. Product labels and generic chat endpoints are not evidence of coding operations.
 
-**Consequence:** A reusable conformance suite, rather than product naming, controls Agent-mode eligibility.
+**Consequence:** Agent mode lists only the admitted OpenCode manifest. Future candidates require authoritative provenance and the same complete conformance evidence; see [HARNESSES.md](HARNESSES.md).
 
 ## ADR-006: Do Not Depend On Microsoft's Extension Marketplace
 

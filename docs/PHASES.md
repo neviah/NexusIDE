@@ -117,6 +117,8 @@ Estimates assume one experienced developer working primarily on NexusIDE. Calend
 
 ## Phase 6: Candidate Harnesses
 
+**Status:** Complete
+
 **Estimate:** 1-2 weeks per materially different harness
 
 ### Work

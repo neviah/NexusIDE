@@ -24,7 +24,7 @@ These rules keep NexusIDE maintainable, safe, and honest as it evolves.
 2. Agent-mode eligibility requires proven workspace reads, reviewable edits, approved shell execution, streaming, cancellation, changed-file reporting, and structured failures.
 3. Discover and display capabilities. Never infer them from a name.
 4. Unsupported capabilities are disabled, not emulated through misleading prompts.
-5. OpenCode is the reference adapter. FreeCode and Free Claude Code are candidates. Hermes and OpenClaw are excluded unless a new decision record changes scope.
+5. OpenCode is the reference adapter and only admitted launch harness. FreeCode, Free Claude Code, Hermes, and OpenClaw remain excluded unless authoritative runtime evidence passes the full admission process and a new decision record changes scope.
 
 ## 4. Agent Safety
 

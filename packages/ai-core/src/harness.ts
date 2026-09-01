@@ -54,3 +54,25 @@ export interface CodingHarness {
     start(request: AgentRequest, signal: AbortSignal): AsyncIterable<AgentEvent>;
     cancel(runId: string): Promise<void>;
 }
+
+export const REQUIRED_AGENT_CAPABILITIES = [
+    "read-files",
+    "edit-files",
+    "run-commands",
+    "stream-progress",
+    "cancel",
+] as const satisfies readonly HarnessCapability[];
+
+export interface HarnessQualification {
+    mode: "agent" | "ask-only" | "ineligible";
+    missing: readonly HarnessCapability[];
+}
+
+export function qualifyHarness(manifest: HarnessManifest): HarnessQualification {
+    const capabilities = new Set(manifest.capabilities);
+    const missing = REQUIRED_AGENT_CAPABILITIES.filter((capability) => !capabilities.has(capability));
+    return {
+        mode: missing.length === 0 ? "agent" : capabilities.has("ask") ? "ask-only" : "ineligible",
+        missing,
+    };
+}

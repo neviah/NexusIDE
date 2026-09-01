@@ -16,8 +16,7 @@ The first private alpha targets:
 
 - Native file editing, search, terminal, Git, and GitHub-compatible push and pull workflows.
 - Ask, Agent, and Design modes in the right sidebar.
-- OpenCode as the required launch harness.
-- FreeCode and Free Claude Code only after they pass the same coding-harness conformance suite.
+- OpenCode as the sole admitted launch harness; rejected candidates can return only with an authoritative runtime and full conformance evidence.
 - JavaScript, TypeScript, HTML, CSS, JSON, Python, and C#/Unity workflows.
 - Ollama, Groq, verified-free OpenRouter models, and optional custom OpenAI-compatible local/self-hosted endpoints through an extensible provider registry.
 
@@ -42,6 +41,7 @@ Harnesses that only provide model chat remain usable in Ask mode but are not pre
 - [Current phase status](docs/STATUS.md)
 - [Engineering guardrails](docs/GUARDRAILS.md)
 - [Provider strategy](docs/PROVIDERS.md)
+- [Harness evaluation](docs/HARNESSES.md)
 - [Architecture decisions](docs/DECISIONS.md)
 - [Upstream maintenance](docs/UPSTREAM.md)
 
@@ -75,4 +75,4 @@ Agent mode starts `opencode acp` as a supervised process. It requires a trusted 
 
 ## Status
 
-Phases 0 through 5 are complete. Phase 6 evaluates candidate coding harnesses against the OpenCode conformance baseline.
+Phases 0 through 6 are complete. Phase 7 verifies Git and language workflows.

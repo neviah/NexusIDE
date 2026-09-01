@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { AgentRunSummary, CodingHarness, normalizeError } from "@nexus/ai-core";
+import { AgentRunSummary, CodingHarness, normalizeError, qualifyHarness } from "@nexus/ai-core";
 import { ModelSelection, ReadOnlyChatRuntime } from "./readOnlyChatRuntime";
 import { ConversationStore } from "./conversationStore";
 import { WorkspaceContextCollector } from "./workspaceContext";
@@ -29,7 +29,12 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         private readonly conversations: ConversationStore,
         private readonly contextCollector: WorkspaceContextCollector,
         private readonly agentHarness: CodingHarness,
-    ) {}
+    ) {
+        const qualification = qualifyHarness(agentHarness.describe());
+        if (qualification.mode !== "agent") {
+            throw new Error(`Coding harness is not qualified for Agent mode; missing: ${qualification.missing.join(", ")}.`);
+        }
+    }
 
     public resolveWebviewView(view: vscode.WebviewView): void {
         this.view = view;
@@ -116,14 +121,20 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         this.activeRun?.abort();
         const run = new AbortController();
         this.activeRun = run;
+        const harness = this.agentHarness.describe();
 
         await this.post({
             type: "runStart",
             prompt: message.prompt.trim(),
-            meta: `${label(message.mode)} / ${message.harness} / ${message.model}`,
+            meta: `${label(message.mode)} / ${message.mode === "agent" ? harness.displayName : message.harness} / ${message.model}`,
         });
 
         if (message.mode === "agent") {
+            if (message.harness !== harness.id) {
+                await this.post({ type: "runError", text: "The selected coding harness is not admitted for Agent mode." });
+                this.activeRun = undefined;
+                return;
+            }
             await this.streamAgent(message, replaceLast, run);
             return;
         }
@@ -281,6 +292,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
 
     private getHtml(webview: vscode.Webview): string {
         const nonce = createNonce();
+        const harness = this.agentHarness.describe();
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -344,7 +356,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
                 <button data-mode="design" aria-pressed="false">Design</button>
             </div>
             <div class="selectors">
-                <label>Harness<select id="harness"><option value="OpenCode">OpenCode</option><option value="FreeCode" disabled>FreeCode (pending)</option><option value="Free Claude Code" disabled>Free Claude Code (pending)</option></select></label>
+                <label>Harness<select id="harness"><option value="${harness.id}">${harness.displayName}</option></select></label>
                 <label>Provider<select id="model"><option value="auto">Auto / free-first</option><option value="ollama">Ollama / local</option><option value="openrouter">OpenRouter / free only</option><option value="groq">Groq / free tier</option></select></label>
             </div>
         </section>

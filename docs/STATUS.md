@@ -4,7 +4,7 @@ Last updated: 2026-09-01
 
 ## Current Milestone
 
-Phase 6: evaluate candidate coding harnesses against the OpenCode conformance baseline.
+Phase 7: verify Git and language workflows while preserving native Code-OSS behavior.
 
 ## Completed
 
@@ -45,10 +45,13 @@ Phase 6: evaluate candidate coding harnesses against the OpenCode conformance ba
 - The Nexus Router view exposes provider enablement, health and latency, checked time, quota/reset state, cooldowns, user quota notes, credential refresh, and explicit Auto stack ordering.
 - A disabled-by-default custom OpenAI-compatible provider supports loopback, self-hosted, and local gateway URLs with an optional SecretStorage API key.
 - Tier 2 provider candidates remain deferred until each provider-specific authentication, catalog, quota, desktop-use terms, and mocked contract satisfy the admission checklist.
+- Phase 6 admitted no additional coding harness: FreeCode has no verifiable runtime contract, and Free Claude Code has no distinct authoritative product or permanent free access claim.
+- Agent mode now derives the displayed identity from the admitted OpenCode manifest and rejects mismatched or incomplete harness identities at the host boundary.
+- Core harness qualification distinguishes Agent-capable, Ask-only, and ineligible manifests; OpenCode remains the only adapter with complete deterministic lifecycle and model-free runtime evidence.
 
 ## Next
 
-- Begin Phase 6 conformance evaluation for candidate coding harnesses; do not expose a candidate in Agent mode before it passes the full suite.
+- Begin Phase 7 native Git and language workflow verification, including curated Python and C#/Unity tooling decisions.
 
 ## Phase 0 Exit Gate
 
@@ -96,3 +99,10 @@ Phase 6: evaluate candidate coding harnesses against the OpenCode conformance ba
 - [x] Default routing admits local and verified free-tier routes only; paid, trial, and unverified mixed routes require exact consent.
 - [x] Provider transport, quota, cooldown, state, and fallback tests use deterministic mocks and require no paid API calls.
 - [x] Router UI describes provider quota as observed, limited, user-entered, or Unknown and never claims unlimited cloud access.
+
+## Phase 6 Exit Gate
+
+- [x] Every named candidate was evaluated through the staged admission process; candidates without an authoritative runtime stopped before execution.
+- [x] Agent mode exposes only OpenCode, whose deterministic conformance and model-free Windows smoke evidence remain green.
+- [x] Incomplete manifests are explicitly classified Ask-only or ineligible and cannot enter Agent mode.
+- [x] Hermes and OpenClaw remain outside launch scope with no unsupported coding claims.
