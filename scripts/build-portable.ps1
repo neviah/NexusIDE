@@ -1,3 +1,10 @@
+param(
+    [ValidateSet("alpha", "beta", "stable")]
+    [string]$Channel = "alpha",
+    [string]$SigningCertificatePath = $env:NEXUSIDE_SIGNING_CERTIFICATE,
+    [string]$SigningCertificatePassword = $env:NEXUSIDE_SIGNING_CERTIFICATE_PASSWORD
+)
+
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $codeOss = Join-Path $root "code-oss"
@@ -14,6 +21,13 @@ $codeOssCommit = (& git -C $codeOss rev-parse HEAD).Trim()
 $previousBuildSourceVersion = $env:BUILD_SOURCEVERSION
 $requiredNode = (Get-Content (Join-Path $codeOss ".nvmrc") -Raw).Trim()
 $portableNodeDirectory = Join-Path $root ".tools\node-v$requiredNode-win-x64"
+
+if ($Channel -in @("beta", "stable") -and -not $SigningCertificatePath) {
+    throw "$Channel releases require an Authenticode signing certificate."
+}
+if ($SigningCertificatePath -and -not $SigningCertificatePassword) {
+    throw "Signing requires NEXUSIDE_SIGNING_CERTIFICATE_PASSWORD."
+}
 
 if ((Test-Path (Join-Path $portableNodeDirectory "node.exe")) -and -not (($env:Path -split ";") -contains $portableNodeDirectory)) {
     $env:Path = "$portableNodeDirectory;$env:Path"
@@ -41,6 +55,11 @@ $sdkTool = Get-ChildItem (Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bi
 if ($sdkTool) {
     $env:Path = "$($sdkTool.Directory.FullName);$env:Path"
 }
+$signed = $false
+if ($SigningCertificatePath -and -not $sdkTool) {
+    throw "signtool.exe is required when a signing certificate is supplied."
+}
+$certificate = if ($SigningCertificatePath) { (Resolve-Path $SigningCertificatePath).Path } else { $null }
 
 $overlayTargets = @{
     (Join-Path $codeOss "product.json") = $productOverlay
@@ -97,6 +116,14 @@ try {
     Copy-Item (Join-Path $coreSource "package.json") $coreTarget
     Copy-Item (Join-Path $coreSource "out\*.js") (Join-Path $coreTarget "out")
 
+    if ($certificate) {
+        $packagedExecutable = Join-Path $upstreamOutput "NexusIDE.exe"
+        & $sdkTool.FullName sign /fd SHA256 /td SHA256 /tr "http://timestamp.digicert.com" /f $certificate /p $SigningCertificatePassword $packagedExecutable
+        if ($LASTEXITCODE -ne 0 -or (Get-AuthenticodeSignature $packagedExecutable).Status -ne "Valid") {
+            throw "Authenticode signing failed: $packagedExecutable"
+        }
+    }
+
     $env:BUILD_SOURCEVERSION = $codeOssCommit
     Push-Location $codeOss
     try {
@@ -131,8 +158,17 @@ $portableData = Join-Path $artifact "data"
 New-Item -ItemType Directory -Force -Path $portableData | Out-Null
 [System.IO.File]::WriteAllText((Join-Path $portableData ".nexuside-portable"), "")
 Remove-Item $archive, $installer, $releaseManifest -Force -ErrorAction SilentlyContinue
-Compress-Archive -Path (Join-Path $artifact "*") -DestinationPath $archive -CompressionLevel Optimal
 Copy-Item $upstreamInstaller $installer
+
+$signed = [bool]$certificate
+if ($certificate) {
+    & $sdkTool.FullName sign /fd SHA256 /td SHA256 /tr "http://timestamp.digicert.com" /f $certificate /p $SigningCertificatePassword $installer
+    if ($LASTEXITCODE -ne 0 -or (Get-AuthenticodeSignature $installer).Status -ne "Valid") {
+        throw "Authenticode signing failed: $installer"
+    }
+}
+
+Compress-Archive -Path (Join-Path $artifact "*") -DestinationPath $archive -CompressionLevel Optimal
 
 $packagedProduct = Get-Content (Join-Path $artifact "resources\app\product.json") -Raw | ConvertFrom-Json
 $packagedExtension = Join-Path $artifact "resources\app\extensions\nexus-ai\out\extension.js"
@@ -152,9 +188,14 @@ $files = @($installer, $archive) | ForEach-Object {
     }
 }
 $manifest = [ordered]@{
+    schemaVersion = 2
     version = $version
+    channel = $Channel
     commit = (& git -C $root rev-parse HEAD).Trim()
-    unsigned = $true
+    upstreamCommit = $codeOssCommit
+    signed = $signed
+    unsigned = -not $signed
+    provenance = if ($env:GITHUB_ACTIONS -eq "true") { "github-attestation" } else { "none" }
     files = $files
 }
 [System.IO.File]::WriteAllText($releaseManifest, ($manifest | ConvertTo-Json -Depth 10), [System.Text.UTF8Encoding]::new($false))

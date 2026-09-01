@@ -41,3 +41,9 @@ git add code-oss docs/UPSTREAM.md docs/STATUS.md
 ## Modification Rule
 
 Do not commit changes directly inside the upstream submodule. NexusIDE behavior belongs in root-level packages, a bundled extension, product override files, or small reviewed patch files applied by automation. Any unavoidable workbench patch requires an architecture decision record and its own upstream-merge test.
+
+## Merge Rehearsal
+
+Run `./scripts/rehearse-upstream-merge.ps1` before a release and before changing the pin. It fetches the configured release branch into a temporary remote ref and uses `git merge-tree`; it never checks out or modifies upstream files. The JSON result is written to `.runtime/upstream-merge-rehearsal.json`.
+
+The Phase 9 rehearsal on 2026-09-01 merged pinned commit `6b83849594a181ba0dcadea99844b6f1f42bbcc9` with current `release/1.136` commit `3bd765c1e25dc37d0621887cedfed5ca75af97dd` without conflicts or worktree changes. Because NexusIDE carries no submodule source patches, expected update cost remains dependency/bootstrap validation, product-overlay verification, extension API compilation, and the full release test matrix.

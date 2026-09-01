@@ -9,8 +9,8 @@ if (-not (Test-Path $manifestPath)) {
 }
 
 $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
-if (-not $manifest.version -or $manifest.unsigned -ne $true -or $manifest.files.Count -ne 2) {
-    throw "Release manifest must describe one unsigned installer and one portable archive."
+if (-not $manifest.version -or $manifest.files.Count -ne 2) {
+    throw "Release manifest must describe one installer and one portable archive."
 }
 
 foreach ($file in $manifest.files) {
@@ -50,6 +50,14 @@ try {
 $signature = Get-AuthenticodeSignature $installer.FullName
 if ($signature.Status -notin @("NotSigned", "Valid")) {
     throw "Unexpected installer signature status: $($signature.Status)"
+}
+$portableExecutable = Join-Path $ArtifactRoot "NexusIDE-win32-x64\NexusIDE.exe"
+$portableSignature = Get-AuthenticodeSignature $portableExecutable
+if ($manifest.signed -eq $true -and ($signature.Status -ne "Valid" -or $portableSignature.Status -ne "Valid")) {
+    throw "The manifest describes a signed release but an executable signature is not valid."
+}
+if ($manifest.channel -in @("beta", "stable") -and $manifest.signed -ne $true) {
+    throw "$($manifest.channel) artifacts must be signed."
 }
 
 Write-Host "Phase 8 artifact validation passed for NexusIDE $($manifest.version)."

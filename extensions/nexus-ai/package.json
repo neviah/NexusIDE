@@ -87,6 +87,11 @@
         "command": "nexusAI.checkLanguageTooling",
         "title": "Check Language Tooling",
         "category": "NexusIDE"
+      },
+      {
+        "command": "nexusAI.exportSupportDiagnostics",
+        "title": "Export Support Diagnostics",
+        "category": "NexusIDE"
       }
     ],
     "viewsContainers": {

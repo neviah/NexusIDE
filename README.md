@@ -47,6 +47,9 @@ Harnesses that only provide model chat remain usable in Ask mode but are not pre
 - [Packaging and release](docs/PACKAGING.md)
 - [Privacy](docs/PRIVACY.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Public beta test matrix](docs/BETA_TEST_MATRIX.md)
+- [Release channels and rollback](docs/RELEASE_CHANNELS.md)
+- [Security policy](SECURITY.md)
 - [Architecture decisions](docs/DECISIONS.md)
 - [Upstream maintenance](docs/UPSTREAM.md)
 
@@ -63,6 +66,8 @@ Set-Location NexusIDE
 ./scripts/launch-code-oss.ps1 -WithNexusAI
 ./scripts/build-portable.ps1
 ./scripts/test-phase8-artifacts.ps1
+./scripts/test-phase9-readiness.ps1
+./scripts/rehearse-upstream-merge.ps1
 ./scripts/install-pinokio-launcher.ps1
 ```
 
@@ -85,4 +90,4 @@ Agent mode starts `opencode acp` as a supervised process. It requires a trusted 
 
 ## Status
 
-Phases 0 through 8 are complete. Phase 9 prepares signed, hardened public beta releases.
+Phases 0 through 9 engineering are complete. Publishing the first public beta requires provisioning the trusted code-signing certificate described in [Release channels and rollback](docs/RELEASE_CHANNELS.md).

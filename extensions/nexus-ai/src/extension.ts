@@ -11,12 +11,20 @@ import { OpenCodeHarness } from "./openCodeHarness";
 import { WorkspaceAgentHost } from "./workspaceAgentHost";
 import { ProviderStateStore } from "./providerStateStore";
 import { showLanguageToolingReport } from "./languageTooling";
+import { buildSupportDiagnostics } from "./supportDiagnostics";
+import { StartupRecovery } from "./startupRecovery";
 
 const VIEW_ID = "nexusAI.chat";
 const CONTAINER_ID = "workbench.view.extension.nexus-ai";
 const ROUTER_VIEW_ID = "nexusRouter.providers";
+let startupRecovery: StartupRecovery | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
+    startupRecovery = new StartupRecovery(context.globalState);
+    const recoveryDetected = await startupRecovery.begin();
+    if (recoveryDetected) {
+        await vscode.window.showWarningMessage("Nexus AI recovered from an unclean shutdown. Completed conversations and provider settings were restored from validated state.");
+    }
     const secretStore = new NexusSecretStore(context.secrets);
     const providers = createProviderRegistry(secretStore);
     const routeStack = new RouteStackStore(context.workspaceState);
@@ -115,6 +123,33 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             await vscode.window.showInformationMessage("Custom endpoint credentials removed.");
         }),
         vscode.commands.registerCommand("nexusAI.checkLanguageTooling", () => showLanguageToolingReport(languageToolingOutput)),
+        vscode.commands.registerCommand("nexusAI.exportSupportDiagnostics", async () => {
+            const destination = await vscode.window.showSaveDialog({
+                defaultUri: vscode.Uri.file("nexuside-support.json"),
+                filters: { JSON: ["json"] },
+                saveLabel: "Export Diagnostics",
+            });
+            if (!destination) return;
+            const providerHealth = Object.fromEntries(["ollama", "groq", "openrouter", "custom-openai"].map((providerId) => {
+                const settings = providerState.provider(providerId);
+                return [providerId, { enabled: settings.enabled, health: settings.health?.status ?? "unknown" }];
+            }));
+            const report = buildSupportDiagnostics({
+                generatedAt: new Date().toISOString(),
+                nexusAIVersion: String(context.extension.packageJSON.version),
+                vscodeVersion: vscode.version,
+                platform: process.platform,
+                architecture: process.arch,
+                workspaceTrusted: vscode.workspace.isTrusted,
+                workspaceFolderCount: vscode.workspace.workspaceFolders?.length ?? 0,
+                recoveryDetected,
+                remoteName: vscode.env.remoteName,
+                providerHealth,
+                logDirectories: [context.logUri.fsPath, context.globalStorageUri.fsPath],
+            });
+            await vscode.workspace.fs.writeFile(destination, Buffer.from(`${JSON.stringify(report, null, 2)}\n`, "utf8"));
+            await vscode.window.showInformationMessage(`Support diagnostics exported to ${destination.fsPath}.`);
+        }),
     );
 
     if (vscode.workspace.getConfiguration("nexusAI").get("openOnStartup", true)) {
@@ -123,7 +158,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
 }
 
-export function deactivate(): void {}
+export async function deactivate(): Promise<void> {
+    await startupRecovery?.markClean();
+}
 
 function validateProviderUrl(value: string): string | undefined {
     try {

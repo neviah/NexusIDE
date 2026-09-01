@@ -29,6 +29,12 @@ jobs:
       - name: Test Git and language workflows
         shell: pwsh
         run: ./scripts/test-phase7-workflows.ps1
+      - name: Test public beta readiness
+        shell: pwsh
+        run: ./scripts/test-phase9-readiness.ps1
+      - name: Rehearse upstream merge
+        shell: pwsh
+        run: ./scripts/rehearse-upstream-merge.ps1
       - name: Validate Pinokio launcher generation
         shell: pwsh
         env:

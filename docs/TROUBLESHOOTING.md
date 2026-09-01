@@ -1,8 +1,12 @@
 # Troubleshooting
 
+## Export Support Diagnostics
+
+Run **NexusIDE: Export Support Diagnostics** from the Command Palette and choose a destination. The JSON report includes versions, platform, workspace trust, provider health status, recovery detection, and log locations. It excludes conversation text, workspace contents, environment values, and credentials.
+
 ## Windows Blocks The Installer
 
-Private-alpha artifacts are unsigned. Verify the SHA-256 value against `SHA256SUMS`, then use the SmartScreen details option only when it matches. A mismatched checksum is a hard stop.
+Alpha artifacts are unsigned. Beta and stable artifacts must have a valid Authenticode signature. Always verify the SHA-256 value against `SHA256SUMS`; a mismatch is a hard stop.
 
 ## Nexus AI Is Missing
 
@@ -22,4 +26,4 @@ Run `NexusIDE: Check Language Tooling`. The report distinguishes missing runtime
 
 ## Pinokio Install Or Update Fails
 
-Open the failed script in Pinokio and inspect its terminal log. Confirm GitHub is reachable and that the latest release contains `release.json` and a versioned portable ZIP. Repair re-downloads and checksum-validates the current release; Reset removes the installed app.
+Open the failed script in Pinokio and inspect its terminal log. Confirm GitHub is reachable and that the latest release contains `release.json` and a versioned portable ZIP. Repair re-downloads and checksum-validates the current release, Roll Back restores the prior verified local copy, and Reset removes both copies.

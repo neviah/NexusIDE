@@ -137,3 +137,13 @@ This log records decisions that materially affect scope, maintenance, security, 
 **Reason:** A per-user installer supports non-admin alpha testers, while the portable package supports removable and Pinokio-managed installs. Reusing upstream Inno packaging avoids a second installer implementation. Code signing and provenance require release infrastructure reserved for Phase 9.
 
 **Consequence:** Private-alpha users see an explicit unknown-publisher warning and must verify checksums. Clean Windows CI tests package structure plus silent installation and uninstallation before tagged prereleases are published. See [PACKAGING.md](PACKAGING.md).
+
+## ADR-015: Fail Closed For Signed Channels And Attest Every Release
+
+**Status:** Accepted
+
+**Decision:** Keep unsigned alpha builds available for development, but require a valid Authenticode signature for beta and stable channels. Bind artifacts to NexusIDE and upstream commits in `release.json`, and publish GitHub OIDC build-provenance attestations.
+
+**Reason:** A public channel must not silently degrade to unknown-publisher binaries when signing material is missing. Checksums prove integrity after publication; signatures and attestations additionally identify publisher and build origin.
+
+**Consequence:** Public beta publication remains blocked until the trusted PFX and password are provisioned as repository secrets. Pinokio retains one checksum-verified previous install so rollback does not depend on network availability. See [RELEASE_CHANNELS.md](RELEASE_CHANNELS.md).

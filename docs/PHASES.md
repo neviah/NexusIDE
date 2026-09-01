@@ -176,6 +176,8 @@ Estimates assume one experienced developer working primarily on NexusIDE. Calend
 
 ## Phase 9: Public Beta Readiness
 
+**Status:** Engineering complete; trusted production certificate provisioning required before public beta publication
+
 **Estimate:** 3-6 additional weeks
 
 ### Work
@@ -188,10 +190,10 @@ Estimates assume one experienced developer working primarily on NexusIDE. Calend
 
 ### Exit Gate
 
-- Signed artifacts install without unexpected security warnings.
-- Upstream merge cost is understood and documented.
-- Security review finds no critical unresolved issues.
-- Release and rollback are reproducible from CI.
+- [ ] Signed artifacts install without unexpected security warnings (pipeline complete; production certificate not yet provisioned).
+- [x] Upstream merge cost is understood and documented.
+- [x] Security review finds no critical unresolved issues.
+- [x] Release and rollback are reproducible from CI.
 
 ## Schedule Summary
 

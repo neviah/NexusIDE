@@ -44,11 +44,12 @@ module.exports = {
       start: info.running("start.js"),
       update: info.running("update.js"),
       repair: info.running("repair.js"),
+      rollback: info.running("rollback.js"),
       reset: info.running("reset.js")
     }
-    if (running.install || running.update || running.repair || running.reset) {
+    if (running.install || running.update || running.repair || running.rollback || running.reset) {
       const active = Object.keys(running).find((name) => running[name])
-      const labels = { install: "Installing", update: "Updating", repair: "Repairing", reset: "Resetting" }
+      const labels = { install: "Installing", update: "Updating", repair: "Repairing", rollback: "Rolling Back", reset: "Resetting" }
       return [{ default: true, icon: "fa-solid fa-terminal", text: labels[active], href: `${active}.js` }]
     }
     if (!installed) {
@@ -58,6 +59,7 @@ module.exports = {
       { default: true, icon: "fa-solid fa-power-off", text: "Launch", href: "start.js" },
       { icon: "fa-solid fa-rotate", text: "Update", href: "update.js" },
       { icon: "fa-solid fa-screwdriver-wrench", text: "Repair", href: "repair.js" },
+      ...(info.exists("app.previous/NexusIDE.exe") ? [{ icon: "fa-solid fa-clock-rotate-left", text: "Roll Back", href: "rollback.js" }] : []),
       { icon: "fa-regular fa-circle-xmark", text: "Reset", href: "reset.js" }
     ]
   }
@@ -98,9 +100,21 @@ module.exports = {
   }]
 }
 '@
+    "rollback.js" = @'
+module.exports = {
+  requires: { platform: "win32" },
+  run: [{
+    method: "shell.run",
+    params: { message: "powershell -NoProfile -ExecutionPolicy Bypass -File rollback.ps1" }
+  }]
+}
+'@
     "reset.js" = @'
 module.exports = {
-  run: [{ method: "fs.rm", params: { path: "app" } }]
+  run: [
+    { method: "fs.rm", params: { path: "app" } },
+    { method: "fs.rm", params: { path: "app.previous" } }
+  ]
 }
 '@
     "install.ps1" = @'
@@ -108,13 +122,20 @@ param([switch]$Force)
 $ErrorActionPreference = "Stop"
 $repo = "neviah/NexusIDE"
 $app = Join-Path $PSScriptRoot "app"
+$previous = Join-Path $PSScriptRoot "app.previous"
 $staging = Join-Path $PSScriptRoot ".download"
 if ((Test-Path (Join-Path $app "NexusIDE.exe")) -and -not $Force) {
     Write-Host "NexusIDE is already installed."
     exit 0
 }
 $headers = @{ "User-Agent" = "NexusIDE-Pinokio" }
-$release = Invoke-RestMethod "https://api.github.com/repos/$repo/releases/latest" -Headers $headers
+$releases = Invoke-RestMethod "https://api.github.com/repos/$repo/releases?per_page=20" -Headers $headers
+$release = $releases | Where-Object {
+  -not $_.draft -and
+  ($_.assets | Where-Object name -Like "NexusIDE-win32-x64-*.zip") -and
+  ($_.assets | Where-Object name -EQ "release.json")
+} | Select-Object -First 1
+if (-not $release) { throw "No installable NexusIDE release was found." }
 $archiveAsset = $release.assets | Where-Object name -Like "NexusIDE-win32-x64-*.zip" | Select-Object -First 1
 $manifestAsset = $release.assets | Where-Object name -EQ "release.json" | Select-Object -First 1
 if (-not $archiveAsset -or -not $manifestAsset) { throw "The latest release is missing required artifacts." }
@@ -133,15 +154,40 @@ $next = Join-Path $PSScriptRoot "app.next"
 Remove-Item $next -Recurse -Force -ErrorAction SilentlyContinue
 Expand-Archive $archive -DestinationPath $next
 if (-not (Test-Path (Join-Path $next "NexusIDE.exe"))) { throw "The release archive is invalid." }
-Remove-Item $app -Recurse -Force -ErrorAction SilentlyContinue
-Move-Item $next $app
+Remove-Item $previous -Recurse -Force -ErrorAction SilentlyContinue
+if (Test-Path $app) { Move-Item $app $previous }
+try {
+  Move-Item $next $app
+} catch {
+  if ((Test-Path $previous) -and -not (Test-Path $app)) { Move-Item $previous $app }
+  throw
+}
 Remove-Item $staging -Recurse -Force
 Write-Host "NexusIDE $($manifest.version) is ready."
+'@
+  "rollback.ps1" = @'
+$ErrorActionPreference = "Stop"
+$app = Join-Path $PSScriptRoot "app"
+$previous = Join-Path $PSScriptRoot "app.previous"
+$swap = Join-Path $PSScriptRoot "app.rollback-swap"
+if (-not (Test-Path (Join-Path $previous "NexusIDE.exe"))) {
+  throw "No previous NexusIDE installation is available."
+}
+Remove-Item $swap -Recurse -Force -ErrorAction SilentlyContinue
+if (Test-Path $app) { Move-Item $app $swap }
+try {
+  Move-Item $previous $app
+  if (Test-Path $swap) { Move-Item $swap $previous }
+} catch {
+  if ((Test-Path $swap) -and -not (Test-Path $app)) { Move-Item $swap $app }
+  throw
+}
+Write-Host "NexusIDE rolled back successfully."
 '@
     "README.md" = @'
 # NexusIDE for Pinokio
 
-Install and launch the latest unsigned NexusIDE private alpha on Windows. Update downloads the newest GitHub release, Repair re-downloads the current release, and Reset removes the installed application while leaving the launcher intact.
+Install and launch NexusIDE on Windows. Update downloads the newest GitHub release, Repair re-downloads it, Roll Back restores the previous verified install, and Reset removes both application slots while leaving the launcher intact.
 
 Windows may show an unsigned-publisher warning. Review the release checksum before continuing. Provider credentials remain in NexusIDE SecretStorage and are not managed by Pinokio.
 

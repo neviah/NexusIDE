@@ -4,7 +4,7 @@ Last updated: 2026-09-01
 
 ## Current Milestone
 
-Phase 9: harden the private alpha for public beta readiness.
+Phase 9 engineering complete. Public beta publication is gated only on provisioning a trusted production code-signing certificate.
 
 ## Completed
 
@@ -59,10 +59,16 @@ Phase 9: harden the private alpha for public beta readiness.
 - The Pinokio app launcher resolves the configured Pinokio home and provides checksum-verified Install, Launch, Update, Repair, and Reset actions.
 - Windows CI runs package, Git/language, launcher, dependency-review, and secret-scan gates; tagged alpha builds package on a clean runner and publish prerelease assets.
 - Private-alpha setup, packaging, provider, harness, language, privacy, troubleshooting, unsigned-warning, and known-limitation documentation is available from the repository index.
+- Release manifests are channel-aware and bind each artifact to NexusIDE and upstream commits; beta and stable packaging fail closed unless Authenticode signing verifies successfully.
+- GitHub release jobs publish OIDC-backed build provenance attestations and require signed beta/stable artifacts.
+- Nexus AI detects unclean shutdowns, restores only validated bounded state, and exports user-initiated recursively redacted support diagnostics.
+- Automated accessibility/keyboard contracts, 10,000-entry context bounds, offline behavior, degraded-provider fallback, migration, recovery, and secret-redaction checks form the Phase 9 beta gate.
+- The upstream merge rehearsal reached current `release/1.136` commit `3bd765c1e25dc37d0621887cedfed5ca75af97dd` without conflicts or submodule worktree changes.
+- Pinokio updates preserve one checksum-verified prior installation and expose an offline Roll Back action.
 
 ## Next
 
-- Begin Phase 9 signing, provenance, migration, recovery, accessibility, scale, offline, upstream-merge, and rollback work.
+- Provision the trusted production PFX secrets, run the clean Windows 10/11 release-candidate matrix, and publish the first signed beta tag.
 
 ## Phase 0 Exit Gate
 
@@ -134,3 +140,13 @@ Phase 9: harden the private alpha for public beta readiness.
 - [x] Pinokio provides one-click install, launch, update, repair, and reset flows using checksum-verified release artifacts.
 - [x] A no-cost Ollama, Groq, or verified-free OpenRouter route can satisfy the documented alpha smoke path; no paid provider is required.
 - [x] Setup, privacy, packaging, troubleshooting, known limitations, and unsigned-build warnings are documented.
+
+## Phase 9 Exit Gate
+
+- [ ] A trusted production certificate is provisioned and a signed beta installs without unexpected security warnings.
+- [x] Release manifests, GitHub provenance attestations, release channels, and fail-closed signing are reproducible from CI.
+- [x] Legacy/malformed state, unclean shutdown recovery, and redacted support diagnostics are tested.
+- [x] Accessibility, keyboard, large-context, offline, and degraded-provider contracts are automated and documented for VM acceptance.
+- [x] Upstream `release/1.136` merge cost is rehearsed and documented without modifying the pinned submodule.
+- [x] Security gates report no critical unresolved issue in the tested NexusIDE surface.
+- [x] Pinokio retains one verified prior install for offline rollback.
