@@ -3,7 +3,7 @@ import test from "node:test";
 import { CompletionRequest, ModelDescriptor, ProviderAdapter, ProviderManifest, ProviderStreamEvent, RouteCandidate } from "../contracts";
 import { NexusError, errorFromResponse, normalizeError } from "../errors";
 import { OllamaAdapter } from "../ollama";
-import { OpenAICompatibleAdapter, createGroqAdapter } from "../openAiCompatible";
+import { OpenAICompatibleAdapter, createGroqAdapter, createOpenRouterAdapter } from "../openAiCompatible";
 import { redactOperationalValue, redactText } from "../redaction";
 import { CompletionRouter, eligibleCandidates } from "../router";
 import { sseJson } from "../streaming";
@@ -156,6 +156,28 @@ test("operational redaction removes credentials and prompt content", () => {
 test("Groq adapter uses the normalized cloud contract", () => {
     const adapter = createGroqAdapter({ apiKey: async () => "test-placeholder", fetch: async () => new Response() });
     assert.deepEqual(adapter.manifest(), { id: "groq", displayName: "Groq", protocol: "openai-compatible", requiresAuthentication: true });
+});
+
+test("OpenRouter admits only models currently priced free", async () => {
+    const adapter = createOpenRouterAdapter({
+        apiKey: async () => "test-placeholder",
+        verifiedAt: () => "2026-09-01T00:00:00.000Z",
+        fetch: async () => Response.json({ data: [
+            { id: "vendor/free", name: "Free", context_length: 32_000, supported_parameters: ["tools", "structured_outputs"], pricing: { prompt: "0", completion: "0", request: "0" } },
+            { id: "vendor/paid", pricing: { prompt: "0.000001", completion: "0", request: "0" } },
+            { id: "vendor/unknown" },
+        ] }),
+    });
+
+    assert.deepEqual(await adapter.listModels(new AbortController().signal), [{
+        id: "vendor/free",
+        displayName: "Free",
+        costClass: "free-tier",
+        contextTokens: 32_000,
+        supportsTools: true,
+        supportsStructuredOutput: true,
+        verifiedAt: "2026-09-01T00:00:00.000Z",
+    }]);
 });
 
 function completion(model: string): CompletionRequest {

@@ -7,9 +7,15 @@ const REQUIRED_COMMANDS = [
     "workbench.view.scm",
     "workbench.view.debug",
     "workbench.action.openSettings",
+    "workbench.view.extension.nexus-router",
+    "nexusAI.setOpenRouterApiKey",
 ] as const;
 
 export async function run(): Promise<void> {
+    const nexus = vscode.extensions.getExtension("nexuside.nexus-ai");
+    assert.ok(nexus, "The Nexus AI extension is unavailable.");
+    await nexus.activate();
+
     const commands = new Set(await vscode.commands.getCommands(true));
     for (const command of REQUIRED_COMMANDS) {
         assert.ok(commands.has(command), `Missing native command: ${command}`);
@@ -36,6 +42,7 @@ export async function run(): Promise<void> {
     await vscode.commands.executeCommand("workbench.view.debug");
     await vscode.commands.executeCommand("workbench.view.explorer");
     await vscode.commands.executeCommand("workbench.view.extension.nexus-ai");
+    await vscode.commands.executeCommand("workbench.view.extension.nexus-router");
 
     console.log("NexusIDE native surface smoke test passed.");
 }

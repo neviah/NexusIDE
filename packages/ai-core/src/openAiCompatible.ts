@@ -13,6 +13,19 @@ export interface OpenAICompatibleOptions {
     supportsStructuredOutput?: boolean;
     headers?: Readonly<Record<string, string>>;
     verifiedAt?: () => string;
+    mapModel?: (model: OpenAICompatibleModel) => ModelDescriptor | undefined;
+}
+
+export interface OpenAICompatibleModel {
+    id?: string;
+    name?: string;
+    context_length?: number;
+    supported_parameters?: string[];
+    pricing?: {
+        prompt?: string;
+        completion?: string;
+        request?: string;
+    };
 }
 
 interface OpenAIChunk {
@@ -40,14 +53,20 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
 
     public async listModels(signal: AbortSignal): Promise<readonly ModelDescriptor[]> {
         const response = await this.fetch("models", { method: "GET", signal });
-        const payload = await parseJson<{ data?: Array<{ id?: string }> }>(response, this.options.id);
-        return (payload.data ?? []).flatMap((model) => model.id ? [{
+        const payload = await parseJson<{ data?: OpenAICompatibleModel[] }>(response, this.options.id);
+        return (payload.data ?? []).flatMap((model) => {
+            if (this.options.mapModel) {
+                const descriptor = this.options.mapModel(model);
+                return descriptor ? [descriptor] : [];
+            }
+            return model.id ? [{
             id: model.id,
             costClass: this.options.costClass,
             supportsTools: this.options.supportsTools ?? true,
             supportsStructuredOutput: this.options.supportsStructuredOutput ?? true,
             verifiedAt: this.options.verifiedAt?.() ?? new Date().toISOString(),
-        }] : []);
+            }] : [];
+        });
     }
 
     public async health(signal: AbortSignal): Promise<ProviderHealth> {
@@ -136,4 +155,42 @@ export function createGroqAdapter(options: Pick<OpenAICompatibleOptions, "apiKey
         supportsStructuredOutput: true,
         ...options,
     });
+}
+
+export function createOpenRouterAdapter(options: Pick<OpenAICompatibleOptions, "apiKey" | "fetch" | "verifiedAt">): OpenAICompatibleAdapter {
+    const verifiedAt = options.verifiedAt ?? (() => new Date().toISOString());
+    return new OpenAICompatibleAdapter({
+        id: "openrouter",
+        displayName: "OpenRouter",
+        baseUrl: "https://openrouter.ai/api/v1",
+        costClass: "mixed",
+        supportsTools: true,
+        supportsStructuredOutput: true,
+        headers: {
+            "HTTP-Referer": "https://github.com/neviah/NexusIDE",
+            "X-OpenRouter-Title": "NexusIDE",
+        },
+        ...options,
+        mapModel: (model) => isVerifiedFreeOpenRouterModel(model) && model.id ? {
+            id: model.id,
+            displayName: model.name,
+            costClass: "free-tier",
+            contextTokens: model.context_length,
+            supportsTools: model.supported_parameters?.includes("tools") ?? false,
+            supportsStructuredOutput: model.supported_parameters?.some((parameter) => parameter === "structured_outputs" || parameter === "response_format") ?? false,
+            verifiedAt: verifiedAt(),
+        } : undefined,
+    });
+}
+
+function isVerifiedFreeOpenRouterModel(model: OpenAICompatibleModel): boolean {
+    const pricing = model.pricing;
+    return pricing !== undefined
+        && isZeroPrice(pricing.prompt)
+        && isZeroPrice(pricing.completion)
+        && isZeroPrice(pricing.request ?? "0");
+}
+
+function isZeroPrice(value: string | undefined): boolean {
+    return value !== undefined && value.trim() !== "" && Number(value) === 0;
 }

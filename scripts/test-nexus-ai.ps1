@@ -18,15 +18,22 @@ if ($LASTEXITCODE -ne 0) {
 Remove-Item $runtime -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path (Join-Path $runtime "user-data"), (Join-Path $runtime "extensions") | Out-Null
 
-& (Join-Path $codeOss "scripts\code.bat") `
-    --user-data-dir (Join-Path $runtime "user-data") `
-    --extensions-dir (Join-Path $runtime "extensions") `
-    --extensionDevelopmentPath $extension `
-    --extensionTestsPath (Join-Path $extension "out\test\suite\index.js") `
-    --disable-updates `
-    --skip-welcome
+$previousErrorActionPreference = $ErrorActionPreference
+try {
+    $ErrorActionPreference = "Continue"
+    $capturedOutput = & (Join-Path $codeOss "scripts\code.bat") `
+        --user-data-dir (Join-Path $runtime "user-data") `
+        --extensions-dir (Join-Path $runtime "extensions") `
+        --extensionDevelopmentPath $extension `
+        --extensionTestsPath (Join-Path $extension "out\test\suite\index.js") `
+        --disable-updates `
+        --skip-welcome 2>&1
+    $testExitCode = $LASTEXITCODE
+} finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+}
 
-if ($LASTEXITCODE -ne 0) {
+if ($testExitCode -ne 0 -or ($capturedOutput | Out-String) -match "AssertionError|NexusIDE integration test failed") {
     throw "Nexus AI integration tests failed."
 }
 

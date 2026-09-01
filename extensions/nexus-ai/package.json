@@ -51,9 +51,26 @@
         "command": "nexusAI.deleteGroqApiKey",
         "title": "Delete Groq API Key",
         "category": "NexusIDE"
+      },
+      {
+        "command": "nexusAI.setOpenRouterApiKey",
+        "title": "Set OpenRouter API Key",
+        "category": "NexusIDE"
+      },
+      {
+        "command": "nexusAI.deleteOpenRouterApiKey",
+        "title": "Delete OpenRouter API Key",
+        "category": "NexusIDE"
       }
     ],
     "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "nexus-router",
+          "title": "Nexus Router",
+          "icon": "media/nexuside.svg"
+        }
+      ],
       "secondarySidebar": [
         {
           "id": "nexus-ai",
@@ -63,6 +80,15 @@
       ]
     },
     "views": {
+      "nexus-router": [
+        {
+          "type": "webview",
+          "id": "nexusRouter.providers",
+          "name": "Providers and Models",
+          "icon": "media/nexuside.svg",
+          "visibility": "visible"
+        }
+      ],
       "nexus-ai": [
         {
           "type": "webview",

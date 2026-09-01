@@ -19,7 +19,7 @@ The first private alpha targets:
 - OpenCode as the required launch harness.
 - FreeCode and Free Claude Code only after they pass the same coding-harness conformance suite.
 - JavaScript, TypeScript, HTML, CSS, JSON, Python, and C#/Unity workflows.
-- Ollama plus a provider registry designed for multiple free-tier and OpenAI-compatible services.
+- Ollama, Groq, and verified-free OpenRouter models through an extensible provider registry.
 
 Hermes and OpenClaw are not launch targets. NexusOS configures them as chat endpoints, but the current integration does not establish the coding operations NexusIDE requires.
 
@@ -64,4 +64,4 @@ The bootstrap downloads the exact Code-OSS Node.js version into `.tools/` when t
 
 ## Status
 
-Phases 0, 1, and 2 are complete. Phase 3 Ask and Design integration is in progress.
+Phases 0 through 3 are complete. Phase 4 OpenCode Agent integration is next.

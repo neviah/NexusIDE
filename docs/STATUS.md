@@ -4,7 +4,7 @@ Last updated: 2026-09-01
 
 ## Current Milestone
 
-Phase 3: replace mock responses with routed Ask and Design streams.
+Phase 4: integrate the OpenCode coding harness behind the Agent mode safety boundary.
 
 ## Completed
 
@@ -30,15 +30,20 @@ Phase 3: replace mock responses with routed Ask and Design streams.
 - Ask and Design discover configured Ollama and Groq models and stream through the free-first router with visible route and fallback metadata.
 - Agent mode remains read-only and does not invoke providers or tools before the Phase 4 harness boundary is implemented.
 - Completed Ask and Design turns persist in bounded workspace state and restore after the webview reloads; malformed state is discarded.
+- OpenRouter discovers its live catalog and admits only models whose prompt, completion, and request prices are explicitly zero.
+- The Nexus Router Activity Bar view manages Groq and OpenRouter credentials, discovers available models, and persists an ordered Auto route stack.
+- Ask and Design can attach bounded active-file, selection, symbol, diagnostic, terminal-selection, and Git-diff context.
+- Regenerate, Stop, New Conversation, and a bounded conversation list work without retaining stale attachments across runs.
+- The Electron integration gate opens both Nexus AI and Nexus Router and fails on extension-host assertion logs.
 
 ## In Progress
 
-- Add workspace context attachments.
-- Add conversation controls including Regenerate.
+- Implement the OpenCode process and event adapter.
+- Add Workspace Trust, approval, diff-preview, dirty-buffer, path-containment, and cancellation enforcement for Agent mode.
 
 ## Next
 
-- Add the OpenCode harness behind the Agent mode boundary.
+- Run the first approval-gated OpenCode edit through the reusable harness conformance suite.
 
 ## Phase 0 Exit Gate
 
@@ -63,3 +68,12 @@ Phase 3: replace mock responses with routed Ask and Design streams.
 - [x] Unit tests prove bounded retries, fallback order, cancellation, redaction, and error normalization.
 - [x] Ollama and Groq stream through the same core provider API.
 - [x] Provider credentials use VS Code SecretStorage and are never persisted in repository files or ordinary extension state.
+
+## Phase 3 Exit Gate
+
+- [x] Ask and Design work with Ollama, Groq free-tier models, and currently verified free OpenRouter models.
+- [x] Ask and Design remain read-only while Agent tools remain disabled until Phase 4 safety contracts are active.
+- [x] Route attempts and fallback metadata are visible in the transcript.
+- [x] Bounded conversations restore after reload without exposing provider credentials.
+- [x] File, selection, symbol, diagnostic, terminal-selection, and Git-diff attachments are bounded before routing.
+- [x] Stop, Regenerate, New Conversation, and conversation switching are implemented and tested.

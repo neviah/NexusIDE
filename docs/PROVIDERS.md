@@ -18,10 +18,12 @@ NexusIDE should combine local inference and legitimate provider free tiers witho
 
 ### Tier 1: Build First
 
-- Ollama: local cookbook route and baseline for offline development.
+- Ollama: implemented as the local baseline for offline development.
 - Custom OpenAI-compatible endpoint: covers LM Studio, local gateways, and self-hosted servers.
-- OpenRouter: broad model discovery; only models explicitly marked free and verified at request time enter free-first Auto routing.
-- Groq: fast OpenAI-compatible API with account-specific free limits.
+- OpenRouter: implemented with live model discovery; only models with explicitly zero prompt, completion, and request prices enter Auto routing.
+- Groq: implemented through its OpenAI-compatible API with account-specific free limits.
+
+The Nexus Router Activity Bar view stores cloud credentials through VS Code SecretStorage, discovers available models, and lets the user order the routes used by Auto. Ollama remains usable without credentials. Catalog eligibility is re-evaluated during discovery; NexusIDE does not infer free status from model names.
 
 ### Tier 2: Evaluate During Provider Expansion
 

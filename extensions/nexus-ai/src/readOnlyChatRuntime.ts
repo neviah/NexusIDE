@@ -7,21 +7,25 @@ import {
     RoutedCompletionEvent,
     SecretStore,
 } from "@nexus/ai-core";
+import { RouteStackStore } from "./routeStackStore";
+import { ContextAttachment, formatContext } from "./workspaceContextTypes";
 
 export type ReadOnlyMode = "ask" | "design";
-export type ModelSelection = "auto" | "ollama";
+export type ModelSelection = "auto" | "ollama" | "openrouter" | "groq";
 
 export interface ReadOnlyChatRequest {
     runId: string;
     prompt: string;
     mode: ReadOnlyMode;
     modelSelection: ModelSelection;
+    context?: readonly ContextAttachment[];
 }
 
 export class ReadOnlyChatRuntime {
     public constructor(
         private readonly providers: ProviderRegistry,
         private readonly secretStore: SecretStore,
+        private readonly routeStack?: RouteStackStore,
         private readonly router = new CompletionRouter(),
     ) {}
 
@@ -36,7 +40,7 @@ export class ReadOnlyChatRuntime {
             candidates,
             messages: [
                 { role: "system", content: systemInstruction(request.mode) },
-                { role: "user", content: request.prompt },
+                { role: "user", content: request.context?.length ? `${request.prompt}\n\nWorkspace context:\n${formatContext(request.context)}` : request.prompt },
             ],
             temperature: 0.2,
         }, signal);
@@ -47,7 +51,7 @@ export class ReadOnlyChatRuntime {
         let firstFailure: NexusError | undefined;
 
         for (const adapter of this.providers.list()) {
-            if (selection === "ollama" && adapter.manifest().id !== "ollama") {
+            if (selection !== "auto" && adapter.manifest().id !== selection) {
                 continue;
             }
             try {
@@ -56,7 +60,15 @@ export class ReadOnlyChatRuntime {
                     continue;
                 }
                 const models = await adapter.listModels(signal);
-                candidates.push(...models.map((model) => ({ adapter, model, health: "healthy" as const })));
+                const stack = selection === "auto" ? this.routeStack?.load() ?? [] : [];
+                candidates.push(...models.flatMap((model) => {
+                    const route = `${adapter.manifest().id}/${model.id}`;
+                    const stackIndex = stack.indexOf(route);
+                    if (stack.length > 0 && stackIndex < 0) {
+                        return [];
+                    }
+                    return [{ adapter, model, health: "healthy" as const, priority: stackIndex < 0 ? 0 : 1_000_000 - stackIndex * 10_000 }];
+                }));
             } catch (error) {
                 const normalized = normalizeError(error, adapter.manifest().id);
                 if (normalized.code === "aborted") {
@@ -72,9 +84,9 @@ export class ReadOnlyChatRuntime {
         if (candidates.length === 0) {
             throw new NexusError({
                 code: "no-routes",
-                message: selection === "ollama"
-                    ? "Ollama has no installed models available."
-                    : "No configured local or free-tier model is available.",
+                message: selection === "auto"
+                    ? "No configured local or free-tier model is available."
+                    : `${providerLabel(selection)} has no configured free model available.`,
             });
         }
         return candidates;
@@ -86,4 +98,8 @@ function systemInstruction(mode: ReadOnlyMode): string {
         return "You are NexusIDE Design mode. Analyze the request, state important assumptions, and return a practical phased implementation plan. Do not claim to edit files, run commands, or perform actions.";
     }
     return "You are NexusIDE Ask mode. Answer coding and workspace questions clearly and accurately. Do not claim to edit files, run commands, or perform actions.";
+}
+
+function providerLabel(selection: Exclude<ModelSelection, "auto">): string {
+    return selection === "openrouter" ? "OpenRouter" : selection === "groq" ? "Groq" : "Ollama";
 }

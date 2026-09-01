@@ -2,22 +2,31 @@ import * as vscode from "vscode";
 import { normalizeError } from "@nexus/ai-core";
 import { ModelSelection, ReadOnlyChatRuntime } from "./readOnlyChatRuntime";
 import { ConversationStore } from "./conversationStore";
+import { WorkspaceContextCollector } from "./workspaceContext";
+import { ContextAttachment, ContextKind } from "./workspaceContextTypes";
 
 type ChatMode = "ask" | "agent" | "design";
 
 type WebviewMessage =
     | { type: "ready" }
     | { type: "send"; prompt: string; mode: ChatMode; harness: string; model: ModelSelection }
+    | { type: "attach"; kind: ContextKind }
+    | { type: "removeAttachment"; id: string }
+    | { type: "regenerate" }
+    | { type: "newConversation" }
+    | { type: "selectConversation"; id: string }
     | { type: "stop" };
 
 export class NexusChatViewProvider implements vscode.WebviewViewProvider {
     private view?: vscode.WebviewView;
     private activeRun?: AbortController;
+    private attachments: ContextAttachment[] = [];
 
     public constructor(
         private readonly extensionUri: vscode.Uri,
         private readonly chatRuntime: ReadOnlyChatRuntime,
         private readonly conversations: ConversationStore,
+        private readonly contextCollector: WorkspaceContextCollector,
     ) {}
 
     public resolveWebviewView(view: vscode.WebviewView): void {
@@ -33,12 +42,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
 
     private async handleMessage(message: WebviewMessage): Promise<void> {
         if (message.type === "ready") {
-            await this.post({ type: "restore", turns: this.conversations.load().map((turn) => ({
-                prompt: turn.prompt,
-                response: turn.response,
-                meta: `${label(turn.mode)} / ${turn.harness} / ${modelLabel(turn.model)}`,
-                route: turn.route,
-            })) });
+            await this.postConversation();
             await this.post({ type: "status", text: `Ready / ${this.chatRuntime.providerNames().join(" + ")}`, tone: "ready" });
             return;
         }
@@ -48,10 +52,62 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
             return;
         }
 
+        if (message.type === "attach") {
+            try {
+                this.attachments.push(await this.contextCollector.collect(message.kind));
+                await this.post({ type: "attachments", attachments: this.attachments.map(({ id, label, kind }) => ({ id, label, kind })) });
+            } catch (error) {
+                await this.post({ type: "status", text: error instanceof Error ? error.message : "Context attachment failed." });
+            }
+            return;
+        }
+
+        if (message.type === "removeAttachment") {
+            this.attachments = this.attachments.filter((attachment) => attachment.id !== message.id);
+            await this.post({ type: "attachments", attachments: this.attachments.map(({ id, label, kind }) => ({ id, label, kind })) });
+            return;
+        }
+
+        if (message.type === "newConversation") {
+            this.activeRun?.abort();
+            this.attachments = [];
+            await this.conversations.create();
+            await this.post({ type: "cleared" });
+            await this.postConversation();
+            return;
+        }
+
+        if (message.type === "selectConversation") {
+            this.activeRun?.abort();
+            this.attachments = [];
+            if (await this.conversations.select(message.id)) {
+                await this.post({ type: "cleared" });
+                await this.postConversation();
+            }
+            return;
+        }
+
+        if (message.type === "regenerate") {
+            const previous = this.conversations.load().at(-1);
+            if (!previous) {
+                await this.post({ type: "status", text: "There is no completed response to regenerate." });
+                return;
+            }
+            this.attachments = [];
+            await this.post({ type: "attachments", attachments: [] });
+            await this.post({ type: "removeLast" });
+            await this.runPrompt({ type: "send", ...previous }, true);
+            return;
+        }
+
         if (message.type !== "send" || !message.prompt.trim()) {
             return;
         }
 
+        await this.runPrompt(message, false);
+    }
+
+    private async runPrompt(message: Extract<WebviewMessage, { type: "send" }>, replaceLast: boolean): Promise<void> {
         this.activeRun?.abort();
         const run = new AbortController();
         this.activeRun = run;
@@ -75,6 +131,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
                 prompt: message.prompt.trim(),
                 mode: message.mode,
                 modelSelection: message.model,
+                context: this.attachments,
             }, run.signal)) {
                 if (event.type === "text-delta") {
                     response += event.text;
@@ -86,14 +143,22 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
                     route = `${event.fromProviderId} / ${event.fromModelId} -> ${event.toProviderId} / ${event.toModelId} (${event.reason})`;
                 }
             }
-            await this.conversations.append({
+            const turn = {
                 prompt: message.prompt.trim(),
                 response,
                 mode: message.mode,
                 harness: message.harness,
                 model: message.model,
                 route,
-            });
+            };
+            if (replaceLast) {
+                await this.conversations.replaceLast(turn);
+            } else {
+                await this.conversations.append(turn);
+            }
+            await this.post({ type: "conversations", conversations: this.conversations.list(), activeId: this.conversations.activeId() });
+            this.attachments = [];
+            await this.post({ type: "attachments", attachments: [] });
             await this.post({ type: "runDone", route });
         } catch (error) {
             const normalized = normalizeError(error);
@@ -125,6 +190,16 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         return this.view?.webview.postMessage(message) ?? Promise.resolve(false);
     }
 
+    private async postConversation(): Promise<void> {
+        await this.post({ type: "conversations", conversations: this.conversations.list(), activeId: this.conversations.activeId() });
+        await this.post({ type: "restore", turns: this.conversations.load().map((turn) => ({
+            prompt: turn.prompt,
+            response: turn.response,
+            meta: `${label(turn.mode)} / ${turn.harness} / ${modelLabel(turn.model)}`,
+            route: turn.route,
+        })) });
+    }
+
     private getHtml(webview: vscode.Webview): string {
         const nonce = createNonce();
         return `<!DOCTYPE html>
@@ -141,6 +216,11 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         button, textarea, select { font: inherit; }
         .shell { min-height: 100vh; display: grid; grid-template-rows: auto 1fr auto; }
         .topbar { padding: 10px 12px; border-bottom: 1px solid var(--vscode-sideBar-border, var(--vscode-widget-border)); background: var(--vscode-sideBar-background); }
+        .conversation-bar { height: 28px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
+        .conversation-bar select { min-width: 0; flex: 1; margin-right: 6px; }
+        .conversation-actions { display: flex; gap: 3px; }
+        .tool-button { width: 26px; height: 26px; padding: 0; border: 0; border-radius: 3px; color: var(--vscode-foreground); background: transparent; cursor: pointer; font-size: 16px; }
+        .tool-button:hover { background: var(--vscode-toolbar-hoverBackground); }
         .mode { display: grid; grid-template-columns: repeat(3, 1fr); height: 30px; padding: 2px; background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); border-radius: 4px; }
         .mode button { border: 0; border-radius: 3px; color: var(--vscode-descriptionForeground); background: transparent; cursor: pointer; }
         .mode button[aria-pressed="true"] { color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
@@ -161,6 +241,13 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         .input-wrap:focus-within { border-color: var(--vscode-focusBorder); }
         textarea { width: 100%; min-height: 68px; max-height: 180px; resize: vertical; padding: 9px 10px; color: var(--vscode-input-foreground); background: transparent; border: 0; outline: 0; line-height: 1.45; }
         .actions { height: 36px; display: flex; align-items: center; justify-content: space-between; padding: 0 6px 6px 10px; }
+        .context-tools { display: flex; align-items: center; gap: 5px; min-width: 0; }
+        .context-tools select { width: 110px; }
+        .attach { width: 28px; height: 28px; padding: 0; border: 0; border-radius: 3px; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); cursor: pointer; }
+        .attachments { display: flex; flex-wrap: wrap; gap: 5px; padding: 0 8px 7px; }
+        .attachment { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 3px 5px; border: 1px solid var(--vscode-widget-border); border-radius: 3px; color: var(--vscode-descriptionForeground); background: var(--vscode-editor-background); }
+        .attachment span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .attachment button { padding: 0; border: 0; color: inherit; background: transparent; cursor: pointer; }
         .status { color: var(--vscode-descriptionForeground); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .send { min-width: 30px; height: 28px; border: 0; border-radius: 3px; color: var(--vscode-button-foreground); background: var(--vscode-button-background); cursor: pointer; }
         .send:hover { background: var(--vscode-button-hoverBackground); }
@@ -170,6 +257,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
 <body>
     <main class="shell">
         <section class="topbar" aria-label="Conversation controls">
+            <div class="conversation-bar"><select id="conversation" aria-label="Conversation"></select><div class="conversation-actions"><button id="regenerate" class="tool-button" title="Regenerate last response" aria-label="Regenerate last response">&#8635;</button><button id="newConversation" class="tool-button" title="New conversation" aria-label="New conversation">+</button></div></div>
             <div class="mode" role="group" aria-label="Chat mode">
                 <button data-mode="ask" aria-pressed="true">Ask</button>
                 <button data-mode="agent" aria-pressed="false">Agent</button>
@@ -177,7 +265,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
             </div>
             <div class="selectors">
                 <label>Harness<select id="harness"><option value="OpenCode">OpenCode</option><option value="FreeCode" disabled>FreeCode (pending)</option><option value="Free Claude Code" disabled>Free Claude Code (pending)</option></select></label>
-                <label>Model<select id="model"><option value="auto">Auto / free-first</option><option value="ollama">Ollama / local</option></select></label>
+                <label>Provider<select id="model"><option value="auto">Auto / free-first</option><option value="ollama">Ollama / local</option><option value="openrouter">OpenRouter / free only</option><option value="groq">Groq / free tier</option></select></label>
             </div>
         </section>
         <section id="transcript" class="transcript" aria-live="polite">
@@ -186,7 +274,8 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         <section class="composer">
             <div class="input-wrap">
                 <textarea id="prompt" aria-label="Message Nexus AI" placeholder="Ask about this workspace..." spellcheck="true"></textarea>
-                <div class="actions"><span id="status" class="status">Starting...</span><button id="send" class="send" title="Send" aria-label="Send">&#8593;</button></div>
+                <div id="attachments" class="attachments"></div>
+                <div class="actions"><div class="context-tools"><select id="contextKind" aria-label="Context source"><option value="selection">Selection</option><option value="file">Active file</option><option value="symbols">Symbols</option><option value="diagnostics">Diagnostics</option><option value="terminal">Terminal selection</option><option value="git-diff">Git diff</option></select><button id="attach" class="attach" title="Attach context" aria-label="Attach context">+</button></div><span id="status" class="status">Starting...</span><button id="send" class="send" title="Send" aria-label="Send">&#8593;</button></div>
             </div>
         </section>
     </main>
@@ -198,6 +287,9 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         const status = document.getElementById('status');
         const harness = document.getElementById('harness');
         const model = document.getElementById('model');
+        const contextKind = document.getElementById('contextKind');
+        const attachments = document.getElementById('attachments');
+        const conversation = document.getElementById('conversation');
         let mode = 'ask';
         let running = false;
         let responseNode;
@@ -219,6 +311,14 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         }
 
         send.addEventListener('click', submit);
+        document.getElementById('attach').addEventListener('click', () => vscode.postMessage({ type: 'attach', kind: contextKind.value }));
+        document.getElementById('regenerate').addEventListener('click', () => { if (!running) vscode.postMessage({ type: 'regenerate' }); });
+        document.getElementById('newConversation').addEventListener('click', () => vscode.postMessage({ type: 'newConversation' }));
+        conversation.addEventListener('change', () => vscode.postMessage({ type: 'selectConversation', id: conversation.value }));
+        attachments.addEventListener('click', event => {
+            const id = event.target.dataset.remove;
+            if (id) vscode.postMessage({ type: 'removeAttachment', id });
+        });
         prompt.addEventListener('keydown', event => {
             if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
@@ -229,6 +329,42 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         window.addEventListener('message', event => {
             const message = event.data;
             if (message.type === 'status') status.textContent = message.text;
+            if (message.type === 'conversations') {
+                conversation.textContent = '';
+                message.conversations.forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item.id;
+                    option.textContent = item.title;
+                    option.selected = item.id === message.activeId;
+                    conversation.appendChild(option);
+                });
+            }
+            if (message.type === 'attachments') {
+                attachments.textContent = '';
+                message.attachments.forEach(item => {
+                    const chip = document.createElement('span');
+                    chip.className = 'attachment';
+                    const text = document.createElement('span');
+                    text.textContent = item.label;
+                    const remove = document.createElement('button');
+                    remove.dataset.remove = item.id;
+                    remove.title = 'Remove context';
+                    remove.setAttribute('aria-label', 'Remove ' + item.label);
+                    remove.textContent = '×';
+                    chip.append(text, remove);
+                    attachments.appendChild(chip);
+                });
+            }
+            if (message.type === 'removeLast') {
+                const messages = transcript.querySelectorAll('.message');
+                messages[messages.length - 1]?.remove();
+                messages[messages.length - 2]?.remove();
+            }
+            if (message.type === 'cleared') {
+                transcript.innerHTML = '<div id="empty" class="empty"><div class="mark">N</div><strong>Nexus AI</strong><span>Local and free-tier coding routes.</span></div>';
+                attachments.textContent = '';
+                finish('Ready');
+            }
             if (message.type === 'restore') {
                 if (message.turns.length) document.getElementById('empty')?.remove();
                 message.turns.forEach(turn => appendTurn(turn.prompt, turn.meta, turn.response, turn.route));
@@ -292,7 +428,10 @@ function label(mode: ChatMode): string {
 }
 
 function modelLabel(model: ModelSelection): string {
-    return model === "ollama" ? "Ollama / local" : "Auto / free-first";
+    if (model === "ollama") return "Ollama / local";
+    if (model === "openrouter") return "OpenRouter / free only";
+    if (model === "groq") return "Groq / free tier";
+    return "Auto / free-first";
 }
 
 function delay(milliseconds: number): Promise<void> {

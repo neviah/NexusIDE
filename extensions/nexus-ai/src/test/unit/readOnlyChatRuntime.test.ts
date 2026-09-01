@@ -10,6 +10,7 @@ import {
     SecretStore,
 } from "@nexus/ai-core";
 import { ReadOnlyChatRuntime } from "../../readOnlyChatRuntime";
+import { RouteStackStore } from "../../routeStackStore";
 
 const secretStore: SecretStore = {
     get: async () => undefined,
@@ -60,6 +61,19 @@ test("an empty discovery result reports a structured no-routes error", async () 
         async () => collect(runtime.stream({ runId: "run-3", prompt: "Hello", mode: "ask", modelSelection: "auto" }, new AbortController().signal)),
         (error: unknown) => error instanceof NexusError && error.code === "no-routes",
     );
+});
+
+test("configured stack order overrides local-first scoring", async () => {
+    const registry = new ProviderRegistry();
+    registry.register(adapter("ollama", "local", []));
+    registry.register(adapter("openrouter", "free-tier", []));
+    const stack = new RouteStackStore({
+        get: <T>() => ["openrouter/openrouter-model", "ollama/ollama-model"] as T,
+        update: async () => undefined,
+    });
+    const runtime = new ReadOnlyChatRuntime(registry, secretStore, stack);
+    const events = await collect(runtime.stream({ runId: "run-4", prompt: "Hello", mode: "ask", modelSelection: "auto" }, new AbortController().signal));
+    assert.equal(events.find((event) => event.type === "route-attempt")?.providerId, "openrouter");
 });
 
 function adapter(id: string, costClass: ModelDescriptor["costClass"], requests: string[][]): ProviderAdapter {
