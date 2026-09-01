@@ -45,7 +45,7 @@ Phase 7: verify Git and language workflows while preserving native Code-OSS beha
 - The Nexus Router view exposes provider enablement, health and latency, checked time, quota/reset state, cooldowns, user quota notes, credential refresh, and explicit Auto stack ordering.
 - A disabled-by-default custom OpenAI-compatible provider supports loopback, self-hosted, and local gateway URLs with an optional SecretStorage API key.
 - Tier 2 provider candidates remain deferred until each provider-specific authentication, catalog, quota, desktop-use terms, and mocked contract satisfy the admission checklist.
-- Phase 6 admitted no additional coding harness: FreeCode has no verifiable runtime contract, and Free Claude Code has no distinct authoritative product or permanent free access claim.
+- Phase 6 admitted no additional coding harness after evaluating `freecodexyz/free-code` and `Alishahryar1/free-claude-code`: Free Code lacks a license grant and conformance evidence, while Free Claude Code is a provider proxy whose OpenCode launcher cannot yet compose with NexusIDE's enforced process policy.
 - Agent mode now derives the displayed identity from the admitted OpenCode manifest and rejects mismatched or incomplete harness identities at the host boundary.
 - Core harness qualification distinguishes Agent-capable, Ask-only, and ineligible manifests; OpenCode remains the only adapter with complete deterministic lifecycle and model-free runtime evidence.
 
@@ -102,7 +102,7 @@ Phase 7: verify Git and language workflows while preserving native Code-OSS beha
 
 ## Phase 6 Exit Gate
 
-- [x] Every named candidate was evaluated through the staged admission process; candidates without an authoritative runtime stopped before execution.
+- [x] Every named candidate was evaluated through the staged admission process using its authoritative repository, machine interface, setup, license, and security behavior.
 - [x] Agent mode exposes only OpenCode, whose deterministic conformance and model-free Windows smoke evidence remain green.
 - [x] Incomplete manifests are explicitly classified Ask-only or ineligible and cannot enter Agent mode.
 - [x] Hermes and OpenClaw remain outside launch scope with no unsupported coding claims.

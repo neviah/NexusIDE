@@ -16,7 +16,7 @@ The first private alpha targets:
 
 - Native file editing, search, terminal, Git, and GitHub-compatible push and pull workflows.
 - Ask, Agent, and Design modes in the right sidebar.
-- OpenCode as the sole admitted launch harness; rejected candidates can return only with an authoritative runtime and full conformance evidence.
+- OpenCode as the sole admitted launch harness; Free Claude Code is tracked as a possible provider route, while other candidates require valid licensing and full conformance evidence.
 - JavaScript, TypeScript, HTML, CSS, JSON, Python, and C#/Unity workflows.
 - Ollama, Groq, verified-free OpenRouter models, and optional custom OpenAI-compatible local/self-hosted endpoints through an extensible provider registry.
 

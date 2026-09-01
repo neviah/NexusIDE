@@ -122,12 +122,12 @@ Switching modes changes enforced capabilities, not merely the system prompt.
 ### 6.1 Launch Set
 
 - OpenCode: required launch target.
-- FreeCode: rejected because no authoritative executable or machine contract could be identified.
-- Free Claude Code: rejected because no distinct product could be identified; official Claude Code does not establish a permanent free harness and would require a separate proprietary CLI adapter.
+- Free Code: authoritative Claude-derived runtime with structured stream/control surfaces, but not admitted because its reconstructed source has no license grant and has not passed Nexus conformance.
+- Free Claude Code: authoritative MIT-licensed provider proxy and launcher ecosystem, not a distinct harness. Its OpenCode launcher cannot yet compose with NexusIDE's mandatory process policy.
 - Hermes: excluded from launch scope.
 - OpenClaw: excluded from launch scope.
 
-Phase 6 evaluated the names inherited from NexusOS and admitted no additional harness. See [HARNESSES.md](HARNESSES.md) for the evidence and reconsideration criteria. Generic chat configuration does not prove shell execution, patch application, cancellation, or change reporting.
+Phase 6 evaluated the authoritative candidate repositories and admitted no additional harness. See [HARNESSES.md](HARNESSES.md) for the evidence and reconsideration criteria. A provider wrapper is not a separate harness, and a machine protocol still requires licensing plus conformance evidence.
 
 ### 6.2 Required Operations
 

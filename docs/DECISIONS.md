@@ -107,3 +107,13 @@ This log records decisions that materially affect scope, maintenance, security, 
 **Reason:** Upstream development supports `product.overrides.json`, but packaged builds consume `product.json` and Windows resources directly. A deterministic overlay preserves the pinned submodule while using the upstream packaging pipeline.
 
 **Consequence:** Packaging fails closed when the submodule has tracked changes. No Code-OSS workbench source modification is required.
+
+## ADR-012: Correct Candidate Harness Classification
+
+**Status:** Accepted; supersedes ADR-005's candidate rationale
+
+**Decision:** Keep OpenCode as the sole admitted harness. Classify Free Claude Code as a provider proxy and launcher ecosystem rather than a distinct harness. Do not integrate its OpenCode launcher until it can compose with NexusIDE's mandatory `OPENCODE_CONFIG_CONTENT` policy. Do not admit or redistribute Free Code without a valid license grant and complete conformance evidence.
+
+**Reason:** The authoritative repositories invalidate ADR-005's provenance assumptions. `fcc-opencode acp` reuses OpenCode's ACP lifecycle but rejects the process configuration NexusIDE uses to force safety policy. Free Code exposes a structured stream and stdio permission controls, but its repository provides no license grant, requires authenticated inference, and supports Windows only through WSL.
+
+**Consequence:** No misleading duplicate harness appears in Agent mode and no safety setting is dropped to gain provider compatibility. Both candidates may be reconsidered when the specific blocker is resolved; see [HARNESSES.md](HARNESSES.md).
