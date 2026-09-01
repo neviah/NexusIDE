@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
-$extension = Join-Path $root "extensions\nexus-ai"
+$package = Join-Path $root "packages\ai-core"
 $requiredNode = (Get-Content (Join-Path $root "code-oss\.nvmrc") -Raw).Trim()
 $portableNodeDirectory = Join-Path $root ".tools\node-v$requiredNode-win-x64"
 
@@ -8,29 +8,24 @@ if (Test-Path (Join-Path $portableNodeDirectory "node.exe")) {
     $env:Path = "$portableNodeDirectory;$env:Path"
 }
 
-& (Join-Path $PSScriptRoot "build-ai-core.ps1")
-if ($LASTEXITCODE -ne 0) {
-    throw "AI core build failed."
-}
-
-Push-Location $extension
+Push-Location $package
 try {
     & npm.cmd install
     if ($LASTEXITCODE -ne 0) {
-        throw "Nexus AI dependency installation failed."
+        throw "AI core dependency installation failed."
     }
 
     & npm.cmd run check
     if ($LASTEXITCODE -ne 0) {
-        throw "Nexus AI typecheck failed."
+        throw "AI core typecheck failed."
     }
 
-    & npm.cmd run compile
+    & npm.cmd test
     if ($LASTEXITCODE -ne 0) {
-        throw "Nexus AI compilation failed."
+        throw "AI core tests failed."
     }
 } finally {
     Pop-Location
 }
 
-Write-Host "Nexus AI extension built successfully."
+Write-Host "AI core built and tested successfully."

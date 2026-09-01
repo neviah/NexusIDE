@@ -11,7 +11,10 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
     private view?: vscode.WebviewView;
     private activeRun?: AbortController;
 
-    public constructor(private readonly extensionUri: vscode.Uri) {}
+    public constructor(
+        private readonly extensionUri: vscode.Uri,
+        private readonly providerNames: readonly string[],
+    ) {}
 
     public resolveWebviewView(view: vscode.WebviewView): void {
         this.view = view;
@@ -26,7 +29,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
 
     private async handleMessage(message: WebviewMessage): Promise<void> {
         if (message.type === "ready") {
-            await this.post({ type: "status", text: "Ready", tone: "ready" });
+            await this.post({ type: "status", text: `Ready / ${this.providerNames.join(" + ")}`, tone: "ready" });
             return;
         }
 

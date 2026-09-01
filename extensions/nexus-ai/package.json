@@ -20,6 +20,9 @@
     "check": "tsc --noEmit",
     "compile": "tsc"
   },
+  "dependencies": {
+    "@nexus/ai-core": "file:../../packages/ai-core"
+  },
   "contributes": {
     "configuration": {
       "title": "Nexus AI",
@@ -37,6 +40,16 @@
         "title": "Open Nexus AI",
         "category": "NexusIDE",
         "icon": "$(sparkle)"
+      },
+      {
+        "command": "nexusAI.setGroqApiKey",
+        "title": "Set Groq API Key",
+        "category": "NexusIDE"
+      },
+      {
+        "command": "nexusAI.deleteGroqApiKey",
+        "title": "Delete Groq API Key",
+        "category": "NexusIDE"
       }
     ],
     "viewsContainers": {

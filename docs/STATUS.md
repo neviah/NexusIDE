@@ -4,7 +4,7 @@ Last updated: 2026-09-01
 
 ## Current Milestone
 
-Phase 1: Thin NexusIDE distribution.
+Phase 3: Ask and Design experience, with remaining Phase 1 packaging work tracked separately.
 
 ## Completed
 
@@ -20,16 +20,21 @@ Phase 1: Thin NexusIDE distribution.
 - Stock Code-OSS launched successfully with isolated user data; main, renderer, Agent Host, and Extension Host initialized.
 - Nexus AI extension shell compiles against the pinned Code-OSS API and loads in the development Extension Host.
 - Ask, Agent, Design, harness, model, Stop, and mock-streaming UI contracts are implemented.
+- `@nexus/ai-core` provides framework-independent provider, model, route, stream, error, retry, fallback, cancellation, and redaction contracts.
+- Ollama and Groq stream through the normalized provider API using injected, deterministic contract fixtures.
+- The extension registers Ollama and Groq while keeping Groq credentials exclusively in VS Code SecretStorage.
+- Core contract tests cover bounded retries, deterministic fallback, paid-route blocking, cancellation, malformed streams, 401/403, 408, 429, 5xx, fallback exhaustion, and secret redaction.
 
 ## In Progress
 
 - Create development brand assets and a portable artifact path.
 - Verify native IDE surfaces under the NexusIDE product identity.
+- Replace the prototype response with routed Ask and Design streams.
 
 ## Next
 
 - Package the Nexus AI extension as a bundled extension.
-- Define the Phase 2 `@nexus/ai-core` contracts and test fixtures.
+- Add conversation persistence and workspace context attachments.
 
 ## Phase 0 Exit Gate
 
@@ -47,3 +52,9 @@ Phase 1: Thin NexusIDE distribution.
 - [ ] Explorer, editor, search, terminal, source control, settings, and debugger remain functional.
 - [x] Nexus AI mock streaming view runs in the Secondary Side Bar.
 - [x] Workbench source modifications are listed in the decision log (none required).
+
+## Phase 2 Exit Gate
+
+- [x] Unit tests prove bounded retries, fallback order, cancellation, redaction, and error normalization.
+- [x] Ollama and Groq stream through the same core provider API.
+- [x] Provider credentials use VS Code SecretStorage and are never persisted in repository files or ordinary extension state.

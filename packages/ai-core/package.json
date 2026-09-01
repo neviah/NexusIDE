@@ -1,0 +1,22 @@
+{
+  "name": "@nexus/ai-core",
+  "version": "0.1.0",
+  "description": "Framework-independent provider contracts and free-first routing for NexusIDE.",
+  "license": "MIT",
+  "type": "commonjs",
+  "main": "./out/index.js",
+  "types": "./out/index.d.ts",
+  "files": [
+    "out/*.js",
+    "out/*.d.ts"
+  ],
+  "scripts": {
+    "check": "tsc --noEmit",
+    "compile": "tsc",
+    "test": "npm run compile && node --test out/test/*.test.js"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^6.0.0"
+  }
+}

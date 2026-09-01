@@ -58,6 +58,8 @@ Set-Location NexusIDE
 
 The bootstrap downloads the exact Code-OSS Node.js version into `.tools/` when the system Node is incompatible. It does not replace the user's global Node installation.
 
+`@nexus/ai-core` lives in `packages/ai-core`. It provides dependency-free runtime contracts, Ollama and OpenAI-compatible transports, secure error normalization, and free-first routing. `build-nexus-ai.ps1` validates this package before compiling the extension.
+
 ## Status
 
-Phase 0 is complete. Code-OSS `1.136.0` is pinned, compiled, and launched successfully; Phase 1 is building the NexusIDE identity and right-sidebar Nexus AI prototype.
+Phases 0 and 2 are complete. Phase 1 branding and packaging validation continues alongside the Phase 3 Ask and Design experience.
