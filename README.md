@@ -55,6 +55,8 @@ Harnesses that only provide model chat remain usable in Ask mode but are not pre
 
 ## Development Quick Start
 
+After the initial setup, double-click `Launch NexusIDE.cmd` in the repository root to start the latest development build with Nexus AI. The launcher does not require typing a command and closes its small startup window automatically.
+
 ```powershell
 git clone --recurse-submodules https://github.com/neviah/NexusIDE.git
 Set-Location NexusIDE
