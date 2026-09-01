@@ -1,6 +1,6 @@
-# Code-OSS checkout and build outputs
-code-oss/
+# Code-OSS build outputs
 .build/
+.tools/
 out/
 dist/
 

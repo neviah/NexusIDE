@@ -39,10 +39,23 @@ Harnesses that only provide model chat remain usable in Ask mode but are not pre
 
 - [System design](docs/DESIGN.md)
 - [Delivery phases](docs/PHASES.md)
+- [Current phase status](docs/STATUS.md)
 - [Engineering guardrails](docs/GUARDRAILS.md)
 - [Provider strategy](docs/PROVIDERS.md)
 - [Architecture decisions](docs/DECISIONS.md)
+- [Upstream maintenance](docs/UPSTREAM.md)
+
+## Development Quick Start
+
+```powershell
+git clone --recurse-submodules https://github.com/neviah/NexusIDE.git
+Set-Location NexusIDE
+./scripts/bootstrap.ps1
+./scripts/compile-code-oss.ps1
+```
+
+The bootstrap downloads the exact Code-OSS Node.js version into `.tools/` when the system Node is incompatible. It does not replace the user's global Node installation.
 
 ## Status
 
-Planning and foundation validation. The first implementation milestone is an unmodified Code-OSS Windows build followed by a bundled right-sidebar extension prototype.
+Phase 0 is active. Code-OSS `1.136.0` is pinned as a submodule; the current milestone is an unmodified Windows build followed by a bundled right-sidebar extension prototype.
