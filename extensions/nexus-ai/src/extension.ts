@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { NexusChatViewProvider } from "./nexusChatViewProvider";
 import { createProviderRegistry, GROQ_API_KEY, NexusSecretStore } from "./providerRuntime";
 import { ReadOnlyChatRuntime } from "./readOnlyChatRuntime";
+import { ConversationStore } from "./conversationStore";
 
 const VIEW_ID = "nexusAI.chat";
 const CONTAINER_ID = "workbench.view.extension.nexus-ai";
@@ -9,7 +10,11 @@ const CONTAINER_ID = "workbench.view.extension.nexus-ai";
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
     const secretStore = new NexusSecretStore(context.secrets);
     const providers = createProviderRegistry(secretStore);
-    const provider = new NexusChatViewProvider(context.extensionUri, new ReadOnlyChatRuntime(providers, secretStore));
+    const provider = new NexusChatViewProvider(
+        context.extensionUri,
+        new ReadOnlyChatRuntime(providers, secretStore),
+        new ConversationStore(context.workspaceState),
+    );
 
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(VIEW_ID, provider, {

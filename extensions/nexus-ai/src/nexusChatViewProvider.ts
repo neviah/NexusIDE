@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { normalizeError } from "@nexus/ai-core";
 import { ModelSelection, ReadOnlyChatRuntime } from "./readOnlyChatRuntime";
+import { ConversationStore } from "./conversationStore";
 
 type ChatMode = "ask" | "agent" | "design";
 
@@ -16,6 +17,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
     public constructor(
         private readonly extensionUri: vscode.Uri,
         private readonly chatRuntime: ReadOnlyChatRuntime,
+        private readonly conversations: ConversationStore,
     ) {}
 
     public resolveWebviewView(view: vscode.WebviewView): void {
@@ -31,6 +33,12 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
 
     private async handleMessage(message: WebviewMessage): Promise<void> {
         if (message.type === "ready") {
+            await this.post({ type: "restore", turns: this.conversations.load().map((turn) => ({
+                prompt: turn.prompt,
+                response: turn.response,
+                meta: `${label(turn.mode)} / ${turn.harness} / ${modelLabel(turn.model)}`,
+                route: turn.route,
+            })) });
             await this.post({ type: "status", text: `Ready / ${this.chatRuntime.providerNames().join(" + ")}`, tone: "ready" });
             return;
         }
@@ -60,6 +68,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         }
 
         let route = "No route selected";
+        let response = "";
         try {
             for await (const event of this.chatRuntime.stream({
                 runId: `${Date.now()}`,
@@ -68,6 +77,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
                 modelSelection: message.model,
             }, run.signal)) {
                 if (event.type === "text-delta") {
+                    response += event.text;
                     await this.post({ type: "delta", text: event.text });
                 } else if (event.type === "route-attempt") {
                     route = `${event.providerId} / ${event.modelId}`;
@@ -76,6 +86,14 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
                     route = `${event.fromProviderId} / ${event.fromModelId} -> ${event.toProviderId} / ${event.toModelId} (${event.reason})`;
                 }
             }
+            await this.conversations.append({
+                prompt: message.prompt.trim(),
+                response,
+                mode: message.mode,
+                harness: message.harness,
+                model: message.model,
+                route,
+            });
             await this.post({ type: "runDone", route });
         } catch (error) {
             const normalized = normalizeError(error);
@@ -211,19 +229,17 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         window.addEventListener('message', event => {
             const message = event.data;
             if (message.type === 'status') status.textContent = message.text;
+            if (message.type === 'restore') {
+                if (message.turns.length) document.getElementById('empty')?.remove();
+                message.turns.forEach(turn => appendTurn(turn.prompt, turn.meta, turn.response, turn.route));
+            }
             if (message.type === 'runStart') {
                 document.getElementById('empty')?.remove();
                 running = true;
                 send.textContent = '■';
                 send.title = 'Stop';
                 status.textContent = 'Generating';
-                transcript.insertAdjacentHTML('beforeend', '<article class="message user"><header><strong>You</strong><span></span></header><p></p></article><article class="message assistant"><header><strong>Nexus AI</strong><span></span></header><p></p><div class="route"></div></article>');
-                const messages = transcript.querySelectorAll('.message');
-                const user = messages[messages.length - 2];
-                const assistant = messages[messages.length - 1];
-                user.querySelector('p').textContent = message.prompt;
-                user.querySelector('header span').textContent = message.meta;
-                responseNode = assistant.querySelector('p');
+                responseNode = appendTurn(message.prompt, message.meta, '', '');
                 transcript.scrollTop = transcript.scrollHeight;
             }
             if (message.type === 'delta' && responseNode) {
@@ -243,6 +259,18 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
             }
             if (message.type === 'runStopped') finish('Stopped');
         });
+
+        function appendTurn(promptText, meta, responseText, routeText) {
+            transcript.insertAdjacentHTML('beforeend', '<article class="message user"><header><strong>You</strong><span></span></header><p></p></article><article class="message assistant"><header><strong>Nexus AI</strong><span></span></header><p></p><div class="route"></div></article>');
+            const messages = transcript.querySelectorAll('.message');
+            const user = messages[messages.length - 2];
+            const assistant = messages[messages.length - 1];
+            user.querySelector('p').textContent = promptText;
+            user.querySelector('header span').textContent = meta;
+            assistant.querySelector('p').textContent = responseText;
+            assistant.querySelector('.route').textContent = routeText;
+            return assistant.querySelector('p');
+        }
 
         function finish(text) {
             running = false;

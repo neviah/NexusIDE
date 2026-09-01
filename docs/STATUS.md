@@ -29,10 +29,11 @@ Phase 3: replace mock responses with routed Ask and Design streams.
 - The unsigned Windows x64 artifact bundles Nexus AI, preserves a portable `data` directory in its ZIP, and runs with the `NexusIDE` product identity.
 - Ask and Design discover configured Ollama and Groq models and stream through the free-first router with visible route and fallback metadata.
 - Agent mode remains read-only and does not invoke providers or tools before the Phase 4 harness boundary is implemented.
+- Completed Ask and Design turns persist in bounded workspace state and restore after the webview reloads; malformed state is discarded.
 
 ## In Progress
 
-- Add conversation persistence and workspace context attachments.
+- Add workspace context attachments.
 - Add conversation controls including Regenerate.
 
 ## Next
