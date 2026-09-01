@@ -127,3 +127,13 @@ This log records decisions that materially affect scope, maintenance, security, 
 **Reason:** Built-in web language services already ship with Code-OSS. Python has a verified Open VSX path. The official C# and Unity IDs are absent from Open VSX, and C# ships runtime components under terms beyond the MIT source license. Automatic Marketplace downloads would violate the distribution boundary established in ADR-006.
 
 **Consequence:** Git and web workflows work out of the box. Python, C#, and Unity capabilities are honest and testable on equipped hosts without making unavailable proprietary components a launch dependency. See [LANGUAGES.md](LANGUAGES.md).
+
+## ADR-014: Ship The Private Alpha As Unsigned Per-User And Portable Artifacts
+
+**Status:** Accepted
+
+**Decision:** Build a lowest-privilege Inno user installer and portable ZIP from the same branded Code-OSS staging directory. Publish version, commit, sizes, and SHA-256 hashes with every release. Pinokio installs only checksum-verified portable release assets.
+
+**Reason:** A per-user installer supports non-admin alpha testers, while the portable package supports removable and Pinokio-managed installs. Reusing upstream Inno packaging avoids a second installer implementation. Code signing and provenance require release infrastructure reserved for Phase 9.
+
+**Consequence:** Private-alpha users see an explicit unknown-publisher warning and must verify checksums. Clean Windows CI tests package structure plus silent installation and uninstallation before tagged prereleases are published. See [PACKAGING.md](PACKAGING.md).

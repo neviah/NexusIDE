@@ -1,0 +1,52 @@
+name: Windows Private Alpha
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*-alpha.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: code-oss/.nvmrc
+          cache: npm
+          cache-dependency-path: code-oss/package-lock.json
+      - name: Bootstrap Code-OSS
+        shell: pwsh
+        run: ./scripts/bootstrap.ps1
+      - name: Build installer and portable package
+        shell: pwsh
+        run: ./scripts/build-portable.ps1
+      - name: Verify artifacts
+        shell: pwsh
+        run: ./scripts/test-phase8-artifacts.ps1
+      - name: Verify non-admin install and uninstall
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem .runtime/artifacts/NexusIDEUserSetup-x64-*.exe | Select-Object -First 1
+          ./scripts/test-phase8-installer.ps1 -InstallerPath $installer.FullName
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NexusIDE-windows-x64
+          path: |
+            .runtime/artifacts/NexusIDEUserSetup-x64-*.exe
+            .runtime/artifacts/NexusIDE-win32-x64-*.zip
+            .runtime/artifacts/release.json
+            .runtime/artifacts/SHA256SUMS
+          if-no-files-found: error
+      - name: Publish tagged alpha
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$env:GITHUB_REF_NAME" --prerelease --title "NexusIDE $env:GITHUB_REF_NAME" --notes-file docs/RELEASE_NOTES.md .runtime/artifacts/NexusIDEUserSetup-x64-*.exe .runtime/artifacts/NexusIDE-win32-x64-*.zip .runtime/artifacts/release.json .runtime/artifacts/SHA256SUMS

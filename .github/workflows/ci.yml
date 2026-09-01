@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: code-oss/.nvmrc
+          cache: npm
+          cache-dependency-path: |
+            packages/ai-core/package-lock.json
+            extensions/nexus-ai/package-lock.json
+      - name: Build and test Nexus packages
+        shell: pwsh
+        run: ./scripts/build-nexus-ai.ps1
+      - name: Test Git and language workflows
+        shell: pwsh
+        run: ./scripts/test-phase7-workflows.ps1
+      - name: Validate Pinokio launcher generation
+        shell: pwsh
+        env:
+          PINOKIO_HOME: ${{ runner.temp }}\pinokio
+        run: |
+          ./scripts/install-pinokio-launcher.ps1
+          Get-ChildItem "$env:PINOKIO_HOME\api\nexuside\*.js" | ForEach-Object { node --check $_.FullName }
+      - name: Check repository patch hygiene
+        shell: pwsh
+        run: git diff --check
+
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

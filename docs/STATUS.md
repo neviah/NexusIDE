@@ -4,7 +4,7 @@ Last updated: 2026-09-01
 
 ## Current Milestone
 
-Phase 8: package the private alpha and build one-click install, update, and repair flows.
+Phase 9: harden the private alpha for public beta readiness.
 
 ## Completed
 
@@ -54,10 +54,15 @@ Phase 8: package the private alpha and build one-click install, update, and repa
 - Python 3.14 compile/run passes locally; the optional tooling checker reports interpreter, extension, and debugger readiness with actionable setup instructions.
 - C# and Unity remain optional: the checker detects missing .NET SDK, Unity editor, and reviewed extensions instead of claiming unavailable functionality.
 - Python's MIT Open VSX extension path is approved; official C# and Unity extensions are not bundled because the required artifacts are absent from Open VSX and shipped runtime terms require separate review.
+- Windows packaging emits a versioned per-user Inno installer, portable ZIP, release manifest, and SHA-256 checksum list from the same branded build.
+- Artifact checks verify hashes, portable layout, bundled Nexus AI, and the expected unsigned status; the install smoke test covers non-admin install, launch, and uninstall under spaces and non-ASCII paths.
+- The Pinokio app launcher resolves the configured Pinokio home and provides checksum-verified Install, Launch, Update, Repair, and Reset actions.
+- Windows CI runs package, Git/language, launcher, dependency-review, and secret-scan gates; tagged alpha builds package on a clean runner and publish prerelease assets.
+- Private-alpha setup, packaging, provider, harness, language, privacy, troubleshooting, unsigned-warning, and known-limitation documentation is available from the repository index.
 
 ## Next
 
-- Begin Phase 8 packaging, Pinokio launcher, clean-machine, CI, and private-alpha setup work.
+- Begin Phase 9 signing, provenance, migration, recovery, accessibility, scale, offline, upstream-merge, and rollback work.
 
 ## Phase 0 Exit Gate
 
@@ -121,3 +126,11 @@ Phase 8: package the private alpha and build one-click install, update, and repa
 - [x] Python runtime workflows pass and optional Python extension/debug prerequisites are detected.
 - [x] C# and Unity workflows are capability-gated and provide actionable setup guidance when the SDK, editor, or reviewed extensions are unavailable.
 - [x] Tooling selection and redistribution constraints are recorded in [LANGUAGES.md](LANGUAGES.md).
+
+## Phase 8 Exit Gate
+
+- [x] Versioned Windows x64 installer and portable artifacts are reproducible and checksum-described.
+- [x] Clean Windows CI exercises build, tests, packaging, dependency review, secret scanning, non-admin installation, launch, and uninstall.
+- [x] Pinokio provides one-click install, launch, update, repair, and reset flows using checksum-verified release artifacts.
+- [x] A no-cost Ollama, Groq, or verified-free OpenRouter route can satisfy the documented alpha smoke path; no paid provider is required.
+- [x] Setup, privacy, packaging, troubleshooting, known limitations, and unsigned-build warnings are documented.

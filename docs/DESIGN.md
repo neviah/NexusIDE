@@ -231,7 +231,9 @@ Imported NexusOS state must migrate secrets into SecretStorage and remove raw ke
 
 ## 11. Distribution And Updates
 
-The first supported platform is Windows 10/11 x64. Produce installer and portable artifacts. Code signing is recommended for public distribution. Pinokio may provide one-click setup and launch, but NexusIDE must also run independently after installation.
+The first supported platform is Windows 10/11 x64. The private alpha ships a per-user Inno installer and a self-contained portable ZIP from one branded build. Both are versioned and described by SHA-256 release metadata. Private-alpha packages remain explicitly unsigned until Phase 9 signing and provenance work.
+
+Pinokio consumes checksum-verified GitHub release artifacts and provides install, launch, update, repair, and reset actions. NexusIDE remains independently installable and does not require Pinokio at runtime.
 
 Code-OSS upstream is pinned by tag or commit. Upstream merges happen on a regular cadence and pass the same stock-build, branded-build, extension, smoke, and packaging checks before release.
 

@@ -43,6 +43,10 @@ Harnesses that only provide model chat remain usable in Ask mode but are not pre
 - [Provider strategy](docs/PROVIDERS.md)
 - [Harness evaluation](docs/HARNESSES.md)
 - [Git and language workflows](docs/LANGUAGES.md)
+- [Private alpha setup](docs/SETUP.md)
+- [Packaging and release](docs/PACKAGING.md)
+- [Privacy](docs/PRIVACY.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Architecture decisions](docs/DECISIONS.md)
 - [Upstream maintenance](docs/UPSTREAM.md)
 
@@ -58,6 +62,8 @@ Set-Location NexusIDE
 ./scripts/test-phase7-workflows.ps1
 ./scripts/launch-code-oss.ps1 -WithNexusAI
 ./scripts/build-portable.ps1
+./scripts/test-phase8-artifacts.ps1
+./scripts/install-pinokio-launcher.ps1
 ```
 
 The bootstrap downloads the exact Code-OSS Node.js version into `.tools/` when the system Node is incompatible. It does not replace the user's global Node installation.
@@ -79,4 +85,4 @@ Agent mode starts `opencode acp` as a supervised process. It requires a trusted 
 
 ## Status
 
-Phases 0 through 7 are complete. Phase 8 packages the private alpha and adds one-click setup flows.
+Phases 0 through 8 are complete. Phase 9 prepares signed, hardened public beta releases.

@@ -6,7 +6,12 @@ $productAssets = Join-Path $root "product\assets"
 $upstreamOutput = Join-Path $root "VSCode-win32-x64"
 $artifactRoot = Join-Path $root ".runtime\artifacts"
 $artifact = Join-Path $artifactRoot "NexusIDE-win32-x64"
-$archive = Join-Path $artifactRoot "NexusIDE-win32-x64.zip"
+$version = ((Get-Content (Join-Path $codeOss "package.json") -Raw | ConvertFrom-Json).version)
+$archive = Join-Path $artifactRoot "NexusIDE-win32-x64-$version.zip"
+$installer = Join-Path $artifactRoot "NexusIDEUserSetup-x64-$version.exe"
+$releaseManifest = Join-Path $artifactRoot "release.json"
+$codeOssCommit = (& git -C $codeOss rev-parse HEAD).Trim()
+$previousBuildSourceVersion = $env:BUILD_SOURCEVERSION
 $requiredNode = (Get-Content (Join-Path $codeOss ".nvmrc") -Raw).Trim()
 $portableNodeDirectory = Join-Path $root ".tools\node-v$requiredNode-win-x64"
 
@@ -69,47 +74,91 @@ try {
     } finally {
         Pop-Location
     }
+
+    if (-not (Test-Path (Join-Path $upstreamOutput "NexusIDE.exe"))) {
+        throw "The branded NexusIDE executable was not produced."
+    }
+
+    Remove-Item (Join-Path $upstreamOutput "resources\app\extensions\copilot") -Recurse -Force -ErrorAction SilentlyContinue
+
+    $extensionSource = Join-Path $root "extensions\nexus-ai"
+    $extensionTarget = Join-Path $upstreamOutput "resources\app\extensions\nexus-ai"
+    New-Item -ItemType Directory -Force -Path (Join-Path $extensionTarget "out"), (Join-Path $extensionTarget "media") | Out-Null
+    $extensionManifest = Get-Content (Join-Path $extensionSource "package.json") -Raw | ConvertFrom-Json
+    $extensionManifest.PSObject.Properties.Remove("scripts")
+    $extensionManifest.PSObject.Properties.Remove("devDependencies")
+    [System.IO.File]::WriteAllText((Join-Path $extensionTarget "package.json"), ($extensionManifest | ConvertTo-Json -Depth 30), [System.Text.UTF8Encoding]::new($false))
+    Copy-Item (Join-Path $extensionSource "out\*.js") (Join-Path $extensionTarget "out")
+    Copy-Item (Join-Path $extensionSource "media\*") (Join-Path $extensionTarget "media") -Recurse
+
+    $coreSource = Join-Path $root "packages\ai-core"
+    $coreTarget = Join-Path $extensionTarget "node_modules\@nexus\ai-core"
+    New-Item -ItemType Directory -Force -Path (Join-Path $coreTarget "out") | Out-Null
+    Copy-Item (Join-Path $coreSource "package.json") $coreTarget
+    Copy-Item (Join-Path $coreSource "out\*.js") (Join-Path $coreTarget "out")
+
+    $env:BUILD_SOURCEVERSION = $codeOssCommit
+    Push-Location $codeOss
+    try {
+        & npm.cmd run gulp -- vscode-win32-x64-inno-updater
+        if ($LASTEXITCODE -ne 0) {
+            throw "Code-OSS Inno updater packaging failed."
+        }
+        & npm.cmd run gulp -- vscode-win32-x64-user-setup
+        if ($LASTEXITCODE -ne 0) {
+            throw "Code-OSS Windows user installer packaging failed."
+        }
+    } finally {
+        Pop-Location
+    }
 } finally {
+    $env:BUILD_SOURCEVERSION = $previousBuildSourceVersion
     foreach ($target in $backups.Keys) {
         [System.IO.File]::WriteAllBytes($target, $backups[$target])
     }
 }
 
-if (-not (Test-Path (Join-Path $upstreamOutput "NexusIDE.exe"))) {
-    throw "The branded NexusIDE executable was not produced."
+$upstreamInstaller = Join-Path $codeOss ".build\win32-x64\user-setup\VSCodeSetup.exe"
+if (-not (Test-Path $upstreamInstaller)) {
+    throw "The Windows user installer was not produced."
 }
 
 Remove-Item $artifact -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $artifactRoot | Out-Null
-Move-Item $upstreamOutput $artifact
-
-$extensionSource = Join-Path $root "extensions\nexus-ai"
-$extensionTarget = Join-Path $artifact "resources\app\extensions\nexus-ai"
-New-Item -ItemType Directory -Force -Path (Join-Path $extensionTarget "out"), (Join-Path $extensionTarget "media") | Out-Null
-$extensionManifest = Get-Content (Join-Path $extensionSource "package.json") -Raw | ConvertFrom-Json
-$extensionManifest.PSObject.Properties.Remove("scripts")
-$extensionManifest.PSObject.Properties.Remove("devDependencies")
-[System.IO.File]::WriteAllText((Join-Path $extensionTarget "package.json"), ($extensionManifest | ConvertTo-Json -Depth 30), [System.Text.UTF8Encoding]::new($false))
-Copy-Item (Join-Path $extensionSource "out\*.js") (Join-Path $extensionTarget "out")
-Copy-Item (Join-Path $extensionSource "media\*") (Join-Path $extensionTarget "media") -Recurse
-
-$coreSource = Join-Path $root "packages\ai-core"
-$coreTarget = Join-Path $extensionTarget "node_modules\@nexus\ai-core"
-New-Item -ItemType Directory -Force -Path (Join-Path $coreTarget "out") | Out-Null
-Copy-Item (Join-Path $coreSource "package.json") $coreTarget
-Copy-Item (Join-Path $coreSource "out\*.js") (Join-Path $coreTarget "out")
+Copy-Item $upstreamOutput $artifact -Recurse
 
 $portableData = Join-Path $artifact "data"
 New-Item -ItemType Directory -Force -Path $portableData | Out-Null
 [System.IO.File]::WriteAllText((Join-Path $portableData ".nexuside-portable"), "")
-Remove-Item $archive -Force -ErrorAction SilentlyContinue
+Remove-Item $archive, $installer, $releaseManifest -Force -ErrorAction SilentlyContinue
 Compress-Archive -Path (Join-Path $artifact "*") -DestinationPath $archive -CompressionLevel Optimal
+Copy-Item $upstreamInstaller $installer
 
 $packagedProduct = Get-Content (Join-Path $artifact "resources\app\product.json") -Raw | ConvertFrom-Json
+$packagedExtension = Join-Path $artifact "resources\app\extensions\nexus-ai\out\extension.js"
 if ($packagedProduct.applicationName -ne "nexuside" -or
-    -not (Test-Path (Join-Path $extensionTarget "out\extension.js")) -or
+    -not (Test-Path $packagedExtension) -or
     -not (Test-Path (Join-Path $portableData ".nexuside-portable"))) {
     throw "Portable artifact validation failed."
 }
 
-Write-Host "Portable NexusIDE artifact: $archive"
+$files = @($installer, $archive) | ForEach-Object {
+    $item = Get-Item $_
+    $hash = Get-FileHash $_ -Algorithm SHA256
+    [ordered]@{
+        name = $item.Name
+        size = $item.Length
+        sha256 = $hash.Hash.ToLowerInvariant()
+    }
+}
+$manifest = [ordered]@{
+    version = $version
+    commit = (& git -C $root rev-parse HEAD).Trim()
+    unsigned = $true
+    files = $files
+}
+[System.IO.File]::WriteAllText($releaseManifest, ($manifest | ConvertTo-Json -Depth 10), [System.Text.UTF8Encoding]::new($false))
+$files | ForEach-Object { "$($_.sha256)  $($_.name)" } | Set-Content (Join-Path $artifactRoot "SHA256SUMS") -Encoding ascii
+
+Write-Host "NexusIDE user installer: $installer"
+Write-Host "NexusIDE portable archive: $archive"

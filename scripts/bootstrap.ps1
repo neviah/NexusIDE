@@ -36,7 +36,9 @@ if ($useSystemNode) {
 }
 
 $nodeDirectory = Split-Path -Parent $selectedNode
-$env:Path = "$nodeDirectory;$env:Path"
+if (-not (($env:Path -split ";") -contains $nodeDirectory)) {
+    $env:Path = "$nodeDirectory;$env:Path"
+}
 $env:vs2022_install = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools"
 
 & (Join-Path $PSScriptRoot "check-prerequisites.ps1") -NodePath $selectedNode

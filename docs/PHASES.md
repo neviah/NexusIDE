@@ -156,6 +156,8 @@ Estimates assume one experienced developer working primarily on NexusIDE. Calend
 
 ## Phase 8: Packaging And Private Alpha
 
+**Status:** Complete
+
 **Estimate:** 2 weeks
 
 ### Work
