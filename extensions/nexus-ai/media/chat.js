@@ -13,6 +13,9 @@
     let mode = "ask";
     let running = false;
     let responseNode;
+    let statusText = "Starting...";
+    let runStartedAt = 0;
+    let elapsedTimer;
 
     document.querySelectorAll("[data-mode]").forEach((button) => button.addEventListener("click", () => {
         mode = button.dataset.mode;
@@ -49,7 +52,7 @@
 
     window.addEventListener("message", (event) => {
         const message = event.data;
-        if (message.type === "status") statusNode.textContent = message.text;
+        if (message.type === "status") setStatus(message.text);
         if (message.type === "conversations") {
             conversation.textContent = "";
             message.conversations.forEach((item) => {
@@ -88,15 +91,18 @@
         }
         if (message.type === "restore") {
             if (message.turns.length) document.getElementById("empty")?.remove();
-            message.turns.forEach((turn) => appendTurn(turn.prompt, turn.meta, turn.response, turn.route));
+            message.turns.forEach((turn) => appendTurn(turn.prompt, turn.meta, turn.response, turn.route, turn.createdAt, turn.completedAt));
         }
         if (message.type === "runStart") {
             document.getElementById("empty")?.remove();
             running = true;
+            runStartedAt = Date.now();
+            clearInterval(elapsedTimer);
+            elapsedTimer = setInterval(renderStatus, 1_000);
             sendButton.textContent = "Stop";
             sendButton.title = "Stop";
-            statusNode.textContent = "Generating";
-            responseNode = appendTurn(message.prompt, message.meta, "", "");
+            setStatus("Preparing routes");
+            responseNode = appendTurn(message.prompt, message.meta, "", "", message.createdAt);
             transcript.scrollTop = transcript.scrollHeight;
         }
         if (message.type === "delta" && responseNode) {
@@ -117,6 +123,7 @@
         if (message.type === "runDone") {
             const routes = transcript.querySelectorAll(".route");
             if (routes.length) routes[routes.length - 1].textContent = message.route;
+            if (responseNode) responseNode.parentElement.querySelector("header span").textContent = formatTime(message.completedAt);
             finish("Ready");
         }
         if (message.type === "runError") {
@@ -128,24 +135,44 @@
         if (message.type === "runStopped") finish("Stopped");
     });
 
-    function appendTurn(promptText, meta, responseText, routeText) {
+    function appendTurn(promptText, meta, responseText, routeText, createdAt, completedAt) {
         transcript.insertAdjacentHTML("beforeend", '<article class="message user"><header><strong>You</strong><span></span></header><p></p></article><article class="message assistant"><header><strong>Nexus AI</strong><span></span></header><p></p><div class="route"></div></article>');
         const messages = transcript.querySelectorAll(".message");
         const user = messages[messages.length - 2];
         const assistant = messages[messages.length - 1];
         user.querySelector("p").textContent = promptText;
-        user.querySelector("header span").textContent = meta;
+        user.querySelector("header span").textContent = [meta, formatTime(createdAt)].filter(Boolean).join(" · ");
         assistant.querySelector("p").textContent = responseText;
+        assistant.querySelector("header span").textContent = formatTime(completedAt);
         assistant.querySelector(".route").textContent = routeText;
         return assistant.querySelector("p");
     }
 
     function finish(text) {
         running = false;
+        clearInterval(elapsedTimer);
+        elapsedTimer = undefined;
         sendButton.textContent = "↑";
         sendButton.title = "Send";
-        statusNode.textContent = text;
+        runStartedAt = 0;
+        setStatus(text);
         responseNode = undefined;
+    }
+
+    function setStatus(text) {
+        statusText = text;
+        renderStatus();
+    }
+
+    function renderStatus() {
+        const elapsed = runStartedAt ? ` · ${Math.floor((Date.now() - runStartedAt) / 1_000)}s` : "";
+        statusNode.textContent = `${statusText}${elapsed}`;
+    }
+
+    function formatTime(value) {
+        if (!value) return "";
+        const date = new Date(value);
+        return Number.isNaN(date.getTime()) ? "" : date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
     }
 
     vscode.postMessage({ type: "ready" });

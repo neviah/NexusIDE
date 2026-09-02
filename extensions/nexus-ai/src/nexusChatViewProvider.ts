@@ -138,15 +138,17 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         this.activeRun = run;
         const harness = this.agentHarness.describe();
         const agentMode = message.mode === "agent" || message.mode === "loop";
+        const createdAt = new Date().toISOString();
 
         await this.post({
             type: "runStart",
             prompt: message.prompt.trim(),
             meta: `${label(message.mode)} / ${agentMode ? harness.displayName : "Auto Stack"}`,
+            createdAt,
         });
 
         if (agentMode) {
-            await this.streamAgent(message, replaceLast, run);
+            await this.streamAgent(message, replaceLast, run, createdAt);
             return;
         }
 
@@ -159,6 +161,10 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
                 mode: message.mode === "design" ? "design" : "ask",
                 modelSelection: "auto",
                 context: this.attachments,
+                onProgress: async (text) => {
+                    await this.post({ type: "status", text });
+                    await this.post({ type: "agentActivity", text });
+                },
             }, run.signal)) {
                 if (event.type === "text-delta") {
                     response += event.text;
@@ -166,10 +172,13 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
                 } else if (event.type === "route-attempt") {
                     route = `${event.providerId} / ${event.modelId}`;
                     await this.post({ type: "status", text: `Generating / ${route}` });
+                    await this.post({ type: "agentActivity", text: `Generating with ${route}` });
                 } else if (event.type === "fallback") {
                     route = `${event.fromProviderId} / ${event.fromModelId} -> ${event.toProviderId} / ${event.toModelId} (${event.reason})`;
+                    await this.post({ type: "agentActivity", text: `Fallback: ${route}` });
                 }
             }
+            const completedAt = new Date().toISOString();
             const turn = {
                 prompt: message.prompt.trim(),
                 response,
@@ -177,6 +186,8 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
                 harness: "auto-stack",
                 model: "auto" as const,
                 route,
+                createdAt,
+                completedAt,
             };
             if (replaceLast) {
                 await this.conversations.replaceLast(turn);
@@ -186,7 +197,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
             await this.post({ type: "conversations", conversations: this.conversations.list(), activeId: this.conversations.activeId() });
             this.attachments = [];
             await this.post({ type: "attachments", attachments: [] });
-            await this.post({ type: "runDone", route });
+            await this.post({ type: "runDone", route, completedAt });
         } catch (error) {
             const normalized = normalizeError(error);
             await this.post(normalized.code === "aborted"
@@ -203,6 +214,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         message: Extract<WebviewMessage, { type: "send" }>,
         replaceLast: boolean,
         run: AbortController,
+        createdAt: string,
     ): Promise<void> {
         const runId = `${Date.now()}`;
         this.activeRunId = runId;
@@ -234,6 +246,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
                     await this.post({ type: "delta", text: event.text });
                 } else if (event.type === "progress") {
                     await this.post({ type: "status", text: event.message || "OpenCode is working" });
+                    await this.post({ type: "agentActivity", text: event.message || "OpenCode is working" });
                 } else if (event.type === "permission") {
                     await this.post({ type: "agentActivity", text: `Approval requested: ${event.title}` });
                 } else if (event.type === "tool") {
@@ -272,6 +285,8 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
                 harness: this.agentHarness.describe().id,
                 model: "auto" as const,
                 route,
+                createdAt,
+                completedAt: new Date().toISOString(),
             };
             if (replaceLast) {
                 await this.conversations.replaceLast(turn);
@@ -286,7 +301,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
             } else if (failure) {
                 await this.post({ type: "runError", text: failure, route, preserve: true });
             } else {
-                await this.post({ type: "runDone", route });
+                await this.post({ type: "runDone", route, completedAt: turn.completedAt });
             }
         } catch (error) {
             const normalized = normalizeError(error);
@@ -312,6 +327,8 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
             response: turn.response,
             meta: `${label(turn.mode)} / ${turn.harness} / ${modelLabel(turn.model)}`,
             route: turn.route,
+            createdAt: turn.createdAt,
+            completedAt: turn.completedAt,
         })) });
     }
 
@@ -353,6 +370,9 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         .message { margin-bottom: 18px; }
         .message header { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 7px; color: var(--vscode-descriptionForeground); font-size: 11px; }
         .message p { margin: 0; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+        .user { display: grid; justify-items: end; }
+        .user header { width: min(88%, 680px); flex-direction: row-reverse; }
+        .user p { width: fit-content; max-width: min(88%, 680px); padding: 9px 11px; border: 1px solid var(--vscode-focusBorder); border-radius: 6px 6px 2px 6px; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); }
         .assistant { padding-left: 10px; border-left: 2px solid var(--vscode-focusBorder); }
         .activity { margin-top: 9px; padding: 7px; max-height: 150px; overflow: auto; border: 1px solid var(--vscode-widget-border); background: var(--vscode-textCodeBlock-background); color: var(--vscode-descriptionForeground); font-family: var(--vscode-editor-font-family); font-size: 11px; white-space: pre-wrap; }
         .route { margin-top: 9px; color: var(--vscode-descriptionForeground); font-size: 11px; }

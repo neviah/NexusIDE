@@ -23,6 +23,16 @@ test("malformed persisted values are discarded", () => {
     assert.deepEqual(new ConversationStore(storage).load(), []);
 });
 
+test("timestamps are optional for old turns and preserved for new turns", () => {
+    const oldTurn = turn("old");
+    const newTurn = { ...turn("new"), createdAt: "2026-03-21T10:00:00.000Z", completedAt: "2026-03-21T10:00:02.000Z" };
+    const storage: ConversationStorage = {
+        get: <T>() => [oldTurn, newTurn] as T,
+        update: async () => undefined,
+    };
+    assert.deepEqual(new ConversationStore(storage).load(), [oldTurn, newTurn]);
+});
+
 test("replace and clear support conversation controls", async () => {
     let state: unknown = [turn("one"), turn("two")];
     const storage: ConversationStorage = {

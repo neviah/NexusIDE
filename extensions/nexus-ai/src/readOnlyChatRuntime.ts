@@ -21,6 +21,7 @@ export interface ReadOnlyChatRequest {
     mode: ReadOnlyMode;
     modelSelection: ModelSelection;
     context?: readonly ContextAttachment[];
+    onProgress?: (message: string) => PromiseLike<void> | void;
 }
 
 export class ReadOnlyChatRuntime {
@@ -37,7 +38,7 @@ export class ReadOnlyChatRuntime {
     }
 
     public async *stream(request: ReadOnlyChatRequest, signal: AbortSignal): AsyncGenerator<RoutedCompletionEvent> {
-        const candidates = await this.discoverCandidates(request.modelSelection, signal);
+        const candidates = await this.discoverCandidates(request, signal);
         yield* this.router.stream({
             runId: request.runId,
             candidates,
@@ -49,9 +50,10 @@ export class ReadOnlyChatRuntime {
         }, signal);
     }
 
-    private async discoverCandidates(selection: ModelSelection, signal: AbortSignal): Promise<RouteCandidate[]> {
+    private async discoverCandidates(request: ReadOnlyChatRequest, signal: AbortSignal): Promise<RouteCandidate[]> {
         const candidates: RouteCandidate[] = [];
         let firstFailure: NexusError | undefined;
+        const selection = request.modelSelection;
 
         for (const adapter of this.providers.list()) {
             const providerId = adapter.manifest().id;
@@ -62,14 +64,18 @@ export class ReadOnlyChatRuntime {
                 continue;
             }
             try {
+                await requestProgress(request, `Checking ${adapter.manifest().displayName}...`);
                 const authentication = await adapter.authenticate(this.secretStore);
                 if (!authentication.authenticated) {
+                    await requestProgress(request, `${adapter.manifest().displayName} is not configured; continuing.`);
                     continue;
                 }
                 const health = await this.resolveHealth(adapter, signal);
                 if (health.status === "unavailable") {
+                    await requestProgress(request, `${adapter.manifest().displayName} is unavailable; continuing.`);
                     continue;
                 }
+                await requestProgress(request, `Discovering eligible ${adapter.manifest().displayName} models...`);
                 const models = await adapter.listModels(signal);
                 const stack = selection === "auto" ? this.routeStack?.load() ?? [] : [];
                 candidates.push(...models.flatMap((model) => {
@@ -132,4 +138,8 @@ function systemInstruction(mode: ReadOnlyMode): string {
 
 function providerLabel(selection: Exclude<ModelSelection, "auto">): string {
     return selection === "openrouter" ? "OpenRouter" : selection === "groq" ? "Groq" : "Ollama";
+}
+
+async function requestProgress(request: ReadOnlyChatRequest, message: string): Promise<void> {
+    await request.onProgress?.(message);
 }

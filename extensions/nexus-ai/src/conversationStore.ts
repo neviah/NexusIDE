@@ -16,6 +16,8 @@ export interface ConversationTurn {
     harness: string;
     model: ModelSelection;
     route: string;
+    createdAt?: string;
+    completedAt?: string;
 }
 
 export interface ConversationSummary {
@@ -154,5 +156,7 @@ function isConversationTurn(value: unknown): value is ConversationTurn {
         && (turn.mode === "ask" || turn.mode === "agent" || turn.mode === "design")
         && typeof turn.harness === "string"
         && (turn.model === "auto" || turn.model === "ollama" || turn.model === "openrouter" || turn.model === "groq")
-        && typeof turn.route === "string";
+        && typeof turn.route === "string"
+        && (turn.createdAt === undefined || typeof turn.createdAt === "string")
+        && (turn.completedAt === undefined || typeof turn.completedAt === "string");
 }

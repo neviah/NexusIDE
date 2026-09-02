@@ -41,6 +41,24 @@ test("Ask and Design use cloud free-tier models before local fallback", async ()
     assert.equal(requests[0][1], "Plan this change");
 });
 
+test("provider discovery reports operational progress before generation", async () => {
+    const registry = new ProviderRegistry();
+    registry.register(adapter("cloud", "free-tier", []));
+    const runtime = new ReadOnlyChatRuntime(registry, secretStore);
+    const progress: string[] = [];
+    for await (const _event of runtime.stream({
+        runId: "progress",
+        prompt: "hello",
+        mode: "ask",
+        modelSelection: "auto",
+        onProgress: (message: string) => { progress.push(message); },
+    }, new AbortController().signal)) {
+        // Drain the stream.
+    }
+    assert.ok(progress.some((message) => message.startsWith("Checking ")));
+    assert.ok(progress.some((message) => message.startsWith("Discovering eligible ")));
+});
+
 test("Ollama selection excludes cloud routes", async () => {
     const registry = new ProviderRegistry();
     registry.register(adapter("cloud", "free-tier", []));
