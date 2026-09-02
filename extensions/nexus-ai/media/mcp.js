@@ -83,6 +83,7 @@
         } else {
             actions.appendChild(button(server.trust === "changed" ? "Review and Trust" : "Trust and Connect", "trust", server.id));
         }
+        if (server.canAuthorize) actions.appendChild(button("Sign In", "authorize", server.id, true));
         actions.appendChild(button(server.hasCredential ? "Replace Token" : "Set Token", "setToken", server.id, true));
         if (server.hasCredential) actions.appendChild(button("Delete Token", "deleteToken", server.id, true));
         return actions;

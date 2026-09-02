@@ -98,3 +98,15 @@ export function parseCommandLine(input: string): { command: string; args: string
     const [command = "", ...args] = tokens.map((token) => /^(["']).*\1$/.test(token) ? token.slice(1, -1) : token);
     return { command, args };
 }
+
+export function canonicalMcpResource(value: string): string {
+    const url = new URL(value);
+    url.hash = "";
+    url.search = "";
+    return url.toString().replace(/\/$/, "");
+}
+
+export function protectedResourceMetadataUrl(resource: string): string {
+    const url = new URL(resource);
+    return `${url.origin}/.well-known/oauth-protected-resource${url.pathname}`;
+}

@@ -3,7 +3,7 @@ import { McpServerManager } from "./mcpServerManager";
 
 type McpMessage =
     | { type: "ready" | "refresh" }
-    | { type: "trust" | "revoke" | "connect" | "disconnect" | "setToken" | "deleteToken"; id: string }
+    | { type: "trust" | "revoke" | "connect" | "disconnect" | "authorize" | "setToken" | "deleteToken"; id: string }
     | { type: "addServer" }
     | { type: "openSettings" };
 
@@ -60,6 +60,9 @@ export class McpViewProvider implements vscode.WebviewViewProvider {
         }
         if (message.type === "disconnect") {
             await this.manager.disconnect(message.id);
+        }
+        if (message.type === "authorize") {
+            await this.manager.authorize(message.id);
         }
         if (message.type === "setToken") {
             await this.actions.setToken(message.id);

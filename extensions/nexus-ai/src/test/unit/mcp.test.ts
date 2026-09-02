@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { McpServerDefinition } from "@nexus/ai-core";
-import { mergeUnityPreset, parseCommandLine, parseServerDefinitions, parseWorkspaceMcpDocument, unityServerDefinition, UNITY_DEFAULT_URL } from "../../mcpServerDefinitions";
+import { canonicalMcpResource, mergeUnityPreset, parseCommandLine, parseServerDefinitions, parseWorkspaceMcpDocument, protectedResourceMetadataUrl, unityServerDefinition, UNITY_DEFAULT_URL } from "../../mcpServerDefinitions";
 import { admitConnection, McpTrustStore } from "../../mcpTrustStore";
 import { buildOpenCodeConfig } from "../../openCodeHarness";
 
@@ -22,6 +22,13 @@ function memoryStorage() {
 
 const httpServer = (id: string, url: string, source: McpServerDefinition["source"] = "user"): McpServerDefinition =>
     ({ id, label: id, source, connection: { transport: "http", url } });
+
+test("OAuth discovery preserves a pinned endpoint while using the metadata's canonical resource", () => {
+    const endpoint = canonicalMcpResource("https://ai-game.dev/mcp/p/project-pin/");
+    assert.equal(endpoint, "https://ai-game.dev/mcp/p/project-pin");
+    assert.equal(protectedResourceMetadataUrl(endpoint), "https://ai-game.dev/.well-known/oauth-protected-resource/mcp/p/project-pin");
+    assert.equal(canonicalMcpResource("https://ai-game.dev/mcp"), "https://ai-game.dev/mcp");
+});
 
 test("workspace-supplied server definitions keep their scope and never appear as user configuration", () => {
     const definitions = parseServerDefinitions({
