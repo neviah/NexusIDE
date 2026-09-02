@@ -14,30 +14,27 @@ NexusIDE should combine local inference and legitimate provider free tiers witho
 | Mixed | Free and paid models share one API | Only explicitly verified free models are eligible |
 | Paid | Usage incurs cost | Disabled until explicit user opt-in |
 
-## Initial Integrations
-
-### Tier 1: Build First
+## Integrated Providers
 
 - Ollama: implemented as the local baseline for offline development.
 - Custom OpenAI-compatible endpoint: covers LM Studio, local gateways, and self-hosted servers.
 - OpenRouter: implemented with live model discovery; only models with explicitly zero prompt, completion, and request prices enter Auto routing.
 - Groq: implemented through its OpenAI-compatible API with account-specific free limits.
+- NVIDIA NIM, Google Gemini, Cerebras, and Mistral AI: implemented through their OpenAI-compatible APIs and classified as provider-controlled free tiers.
+- GitHub Models: retained in the catalog as unavailable because GitHub retired the service on July 30, 2026.
+- Hugging Face: implemented for secure configuration and discovery, but classified as trial because its monthly allowance is credit-metered.
+- SambaNova: implemented for secure configuration and discovery; current service eligibility remains provider-controlled and must not be described as unlimited.
 
-The Nexus Router Activity Bar view stores credentials through VS Code SecretStorage, discovers available models, checks health, shows advisory quota and cooldown state, and lets the user enable providers and explicitly order the routes used by Auto. Ollama remains usable without credentials. The custom endpoint is disabled initially, uses a loopback URL by default, permits an optional API key, and is classified as local rather than assumed to be a cloud free tier. Catalog eligibility is re-evaluated during discovery; NexusIDE does not infer free status from model names.
+The catalog is grounded in [mnfst/awesome-free-llm-apis](https://github.com/mnfst/awesome-free-llm-apis), with endpoint and terms reviewed again when NexusIDE changes an adapter. The Nexus Router stores credentials through VS Code SecretStorage, discovers available models, checks health, shows advisory quota and cooldown state, and lets the user order routes used by Auto. Ollama remains usable without credentials. The custom endpoint is disabled initially, uses a loopback URL by default, permits an optional API key, and is classified as local.
 
-### Tier 2: Evaluate During Provider Expansion
+### Next Provider Candidates
 
-- Google Gemini API.
-- Cerebras Inference.
-- SambaNova Cloud.
-- Mistral API.
-- GitHub Models, subject to authentication, redistribution, and usage terms.
-- Hugging Face inference services.
 - Cloudflare Workers AI where the user's account supplies an eligible allowance.
+- LLM7.io keyless and token tiers.
+- ModelScope and SiliconFlow, subject to regional identity requirements.
+- Ollama Cloud, Kilo Code, Aion Labs, Z AI, and OVHcloud AI Endpoints.
 
-This is a candidate list, not a claim that each provider will retain a free tier. Before implementation, verify current API documentation, allowed client types, rate limits, model availability, regional restrictions, data terms, and whether a user-supplied key may be used in a desktop application.
-
-Phase 5 keeps these providers deferred. Their authentication, catalog, quota, and terms differ enough that labeling them as generic OpenAI-compatible free routes would weaken the admission policy. Each remains eligible for a later provider-specific adapter after the admission checklist passes; users can connect a compatible self-hosted gateway through the custom endpoint without NexusIDE asserting a third-party free allowance.
+This is a candidate list, not a claim that each provider will retain a free tier. Providers needing account IDs, nonstandard model discovery, native protocols, or regional identity checks require dedicated configuration and tests before admission.
 
 ### Not A Provider Contract
 

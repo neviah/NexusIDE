@@ -49,6 +49,29 @@ test("OpenAI-compatible and Ollama model discovery normalize into one descriptor
     assert.deepEqual({ id: localModel.id, cost: localModel.costClass, structured: localModel.supportsStructuredOutput }, { id: "local-model:latest", cost: "local", structured: true });
 });
 
+test("OpenAI-compatible adapters support absolute provider model catalogs", async () => {
+    let requestedUrl = "";
+    let apiKeyHeader = "";
+    const cloud = new OpenAICompatibleAdapter({
+        id: "cloud",
+        displayName: "Cloud",
+        baseUrl: "https://chat.example.test/v1",
+        modelsPath: "https://catalog.example.test/models",
+        costClass: "free-tier",
+        apiKey: async () => "test-placeholder",
+        apiKeyHeader: "x-api-key",
+        extractModels: (payload) => Array.isArray(payload) ? payload : [],
+        fetch: async (input, init) => {
+            requestedUrl = String(input);
+            apiKeyHeader = new Headers(init?.headers).get("x-api-key") ?? "";
+            return Response.json([{ id: "cloud-model" }]);
+        },
+    });
+    assert.equal((await cloud.listModels(new AbortController().signal))[0].id, "cloud-model");
+    assert.equal(requestedUrl, "https://catalog.example.test/models");
+    assert.equal(apiKeyHeader, "test-placeholder");
+});
+
 test("custom OpenAI-compatible endpoints allow optional auth and default to local cost", async () => {
     const adapter = createCustomOpenAICompatibleAdapter({
         baseUrl: "http://127.0.0.1:1234/v1",
@@ -57,6 +80,19 @@ test("custom OpenAI-compatible endpoints allow optional auth and default to loca
     });
     assert.equal((await adapter.authenticate({ get: async () => undefined, set: async () => undefined, delete: async () => undefined })).authenticated, true);
     assert.equal((await adapter.listModels(new AbortController().signal))[0].costClass, "local");
+});
+
+test("cloud adapters with key callbacks require configured credentials", async () => {
+    const adapter = new OpenAICompatibleAdapter({
+        id: "cloud",
+        displayName: "Cloud",
+        baseUrl: "https://example.test/v1",
+        costClass: "free-tier",
+        apiKey: async () => undefined,
+    });
+    const authentication = await adapter.authenticate({ get: async () => undefined, set: async () => undefined, delete: async () => undefined });
+    assert.equal(adapter.manifest().requiresAuthentication, true);
+    assert.equal(authentication.authenticated, false);
 });
 
 test("provider quota headers normalize remaining requests and reset durations", () => {

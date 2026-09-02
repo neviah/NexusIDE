@@ -13,6 +13,9 @@ export interface OpenAICompatibleOptions {
     supportsTools?: boolean;
     supportsStructuredOutput?: boolean;
     headers?: Readonly<Record<string, string>>;
+    apiKeyHeader?: string;
+    modelsPath?: string;
+    extractModels?: (payload: unknown) => readonly OpenAICompatibleModel[];
     verifiedAt?: () => string;
     mapModel?: (model: OpenAICompatibleModel) => ModelDescriptor | undefined;
 }
@@ -21,6 +24,9 @@ export interface OpenAICompatibleModel {
     id?: string;
     name?: string;
     context_length?: number;
+    inputTokenLimit?: number;
+    displayName?: string;
+    supportedGenerationMethods?: string[];
     supported_parameters?: string[];
     pricing?: {
         prompt?: string;
@@ -42,30 +48,35 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
     }
 
     public manifest(): ProviderManifest {
-        return { id: this.options.id, displayName: this.options.displayName, protocol: "openai-compatible", requiresAuthentication: this.options.authenticationRequired ?? Boolean(this.options.apiKey) };
+        return { id: this.options.id, displayName: this.options.displayName, protocol: "openai-compatible", requiresAuthentication: this.requiresAuthentication() };
     }
 
     public async authenticate(_secretStore: SecretStore): Promise<AuthStatus> {
-        if (!this.options.apiKey || !this.options.authenticationRequired) {
+        if (!this.requiresAuthentication()) {
             return { authenticated: true };
         }
-        return { authenticated: Boolean(await this.options.apiKey()), message: "Configure this provider's API key in NexusIDE SecretStorage." };
+        const apiKey = this.options.apiKey;
+        return { authenticated: Boolean(apiKey && await apiKey()), message: "Configure this provider's API key in NexusIDE SecretStorage." };
     }
 
     public async listModels(signal: AbortSignal): Promise<readonly ModelDescriptor[]> {
-        const response = await this.fetch("models", { method: "GET", signal });
-        const payload = await parseJson<{ data?: OpenAICompatibleModel[] }>(response, this.options.id);
-        return (payload.data ?? []).flatMap((model) => {
+        const response = await this.fetch(this.options.modelsPath ?? "models", { method: "GET", signal });
+        const payload = await parseJson<unknown>(response, this.options.id);
+        const models = this.options.extractModels?.(payload) ?? defaultModels(payload);
+        return models.flatMap((model) => {
             if (this.options.mapModel) {
                 const descriptor = this.options.mapModel(model);
                 return descriptor ? [descriptor] : [];
             }
-            return model.id ? [{
-            id: model.id,
-            costClass: this.options.costClass,
-            supportsTools: this.options.supportsTools ?? true,
-            supportsStructuredOutput: this.options.supportsStructuredOutput ?? true,
-            verifiedAt: this.options.verifiedAt?.() ?? new Date().toISOString(),
+            const id = model.id ?? model.name;
+            return id ? [{
+                id,
+                displayName: model.displayName,
+                costClass: this.options.costClass,
+                contextTokens: model.context_length ?? model.inputTokenLimit,
+                supportsTools: this.options.supportsTools ?? true,
+                supportsStructuredOutput: this.options.supportsStructuredOutput ?? true,
+                verifiedAt: this.options.verifiedAt?.() ?? new Date().toISOString(),
             }] : [];
         });
     }
@@ -73,7 +84,7 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
     public async health(signal: AbortSignal): Promise<ProviderHealth> {
         const started = Date.now();
         try {
-            await this.fetch("models", { method: "GET", signal });
+            await this.fetch(this.options.modelsPath ?? "models", { method: "GET", signal });
             return { status: "healthy", checkedAt: new Date().toISOString(), latencyMs: Date.now() - started };
         } catch (error) {
             const normalized = normalizeError(error, this.options.id);
@@ -125,11 +136,12 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
         try {
             const apiKey = await this.options.apiKey?.();
             const baseUrl = typeof this.options.baseUrl === "function" ? this.options.baseUrl() : this.options.baseUrl;
-            const response = await this.request(`${baseUrl.replace(/\/$/, "")}/${path}`, {
+            const url = /^https?:\/\//i.test(path) ? path : `${baseUrl.replace(/\/$/, "")}/${path}`;
+            const response = await this.request(url, {
                 ...init,
                 headers: {
                     ...this.options.headers,
-                    ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}),
+                    ...(apiKey ? this.options.apiKeyHeader ? { [this.options.apiKeyHeader]: apiKey } : { authorization: `Bearer ${apiKey}` } : {}),
                     ...init.headers,
                 },
             });
@@ -140,6 +152,10 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
         } catch (error) {
             throw normalizeError(error, this.options.id);
         }
+    }
+
+    private requiresAuthentication(): boolean {
+        return this.options.authenticationRequired ?? Boolean(this.options.apiKey);
     }
 }
 
@@ -265,4 +281,10 @@ function parseReset(value: string, now: number): string | undefined {
         milliseconds += amount * (match[2].toLowerCase() === "h" ? 3_600_000 : match[2].toLowerCase() === "m" ? 60_000 : match[2].toLowerCase() === "s" ? 1_000 : 1);
     }
     return matched ? new Date(now + milliseconds).toISOString() : undefined;
+}
+
+function defaultModels(payload: unknown): readonly OpenAICompatibleModel[] {
+    if (Array.isArray(payload)) return payload as OpenAICompatibleModel[];
+    if (payload && typeof payload === "object" && "data" in payload && Array.isArray(payload.data)) return payload.data as OpenAICompatibleModel[];
+    return [];
 }

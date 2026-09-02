@@ -96,7 +96,7 @@ Phase 9 engineering complete. Public beta publication is gated only on provision
 
 ## Phase 3 Exit Gate
 
-- [x] Ask and Design work with Ollama, Groq free-tier models, and currently verified free OpenRouter models.
+- [x] Ask and Design work with Ollama, configured permanent-free OpenAI-compatible providers, and currently verified free OpenRouter models.
 - [x] Ask and Design remain read-only while Agent tools remain disabled until Phase 4 safety contracts are active.
 - [x] Route attempts and fallback metadata are visible in the transcript.
 - [x] Bounded conversations restore after reload without exposing provider credentials.
@@ -138,7 +138,7 @@ Phase 9 engineering complete. Public beta publication is gated only on provision
 - [x] Versioned Windows x64 installer and portable artifacts are reproducible and checksum-described.
 - [x] Clean Windows CI exercises build, tests, packaging, dependency review, secret scanning, non-admin installation, launch, and uninstall.
 - [x] Pinokio provides one-click install, launch, update, repair, and reset flows using checksum-verified release artifacts.
-- [x] A no-cost Ollama, Groq, or verified-free OpenRouter route can satisfy the documented alpha smoke path; no paid provider is required.
+- [x] A no-cost local or configured free-tier route can satisfy the documented alpha smoke path; no paid provider is required.
 - [x] Setup, privacy, packaging, troubleshooting, known limitations, and unsigned-build warnings are documented.
 
 ## Phase 9 Exit Gate

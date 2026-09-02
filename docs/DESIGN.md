@@ -108,6 +108,8 @@ The composer includes:
 
 The chat pane uses the configured Auto Stack rather than duplicating provider and model controls. OpenCode remains the admitted coding harness. Loop runs bounded builder and independent critic rounds against a user-visible quality bar.
 
+The pane is constrained to the Secondary Side Bar viewport. Conversation content scrolls inside the transcript and follows new turns, response deltas, and operational activity. Provider discovery and agent activity are factual, collapsible progress records rather than hidden model reasoning.
+
 ### 5.3 Mode Contracts
 
 | Mode | Read workspace | Modify files | Run commands | Primary output |

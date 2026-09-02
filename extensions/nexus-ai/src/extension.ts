@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { CompletionRouter } from "@nexus/ai-core";
 import { NexusChatViewProvider } from "./nexusChatViewProvider";
-import { createProviderRegistry, CUSTOM_OPENAI_API_KEY, GROQ_API_KEY, NexusSecretStore, OPENROUTER_API_KEY } from "./providerRuntime";
+import { CATALOG_PROVIDER_DEFINITIONS, createProviderRegistry, CUSTOM_OPENAI_API_KEY, GROQ_API_KEY, NexusSecretStore, OPENROUTER_API_KEY } from "./providerRuntime";
 import { ReadOnlyChatRuntime } from "./readOnlyChatRuntime";
 import { ConversationStore } from "./conversationStore";
 import { NexusRouterViewProvider } from "./nexusRouterViewProvider";
@@ -46,12 +46,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const agentHarness = new OpenCodeHarness(agentHost, openCodePath || undefined, undefined, async () => {
         const openRouterKey = await secretStore.get(OPENROUTER_API_KEY);
         const groqKey = await secretStore.get(GROQ_API_KEY);
-        return {
+        const environment: NodeJS.ProcessEnv = {
             ...(openRouterKey ? { OPENROUTER_API_KEY: openRouterKey } : {}),
             ...(groqKey ? { GROQ_API_KEY: groqKey } : {}),
         };
+        for (const provider of CATALOG_PROVIDER_DEFINITIONS) {
+            const apiKey = await secretStore.get(provider.secretKey);
+            if (apiKey) environment[provider.environmentKey] = apiKey;
+        }
+        return environment;
     });
-    const setProviderKey = async (provider: "Groq" | "OpenRouter", secretKey: string): Promise<void> => {
+    const setProviderKey = async (provider: string, secretKey: string): Promise<void> => {
         const apiKey = await vscode.window.showInputBox({
             title: `Set ${provider} API Key`,
             prompt: provider === "OpenRouter" ? "Only currently verified free models enter automatic routing. The key is stored in the operating system credential store." : "The key is stored in the operating system credential store and is never sent to the webview.",
@@ -92,7 +97,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         agentHarness,
         routeStack,
     );
+    const credentialActions = Object.fromEntries(CATALOG_PROVIDER_DEFINITIONS.map((provider) => [provider.id, {
+        secretKey: provider.secretKey,
+        set: () => setProviderKey(provider.displayName, provider.secretKey),
+    }]));
     const routerProvider = new NexusRouterViewProvider(context.extensionUri, providers, secretStore, routeStack, providerState, {
+        ...credentialActions,
         groq: { secretKey: GROQ_API_KEY, set: () => setProviderKey("Groq", GROQ_API_KEY) },
         openrouter: { secretKey: OPENROUTER_API_KEY, set: () => setProviderKey("OpenRouter", OPENROUTER_API_KEY) },
         "custom-openai": { secretKey: CUSTOM_OPENAI_API_KEY, set: configureCustomEndpoint },
@@ -140,7 +150,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 saveLabel: "Export Diagnostics",
             });
             if (!destination) return;
-            const providerHealth = Object.fromEntries(["ollama", "groq", "openrouter", "custom-openai"].map((providerId) => {
+            const providerHealth = Object.fromEntries(providers.list().map((adapter) => {
+                const providerId = adapter.manifest().id;
                 const settings = providerState.provider(providerId);
                 return [providerId, { enabled: settings.enabled, health: settings.health?.status ?? "unknown" }];
             }));

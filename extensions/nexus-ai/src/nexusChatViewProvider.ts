@@ -344,9 +344,10 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
     <style>
         :root { color-scheme: light dark; }
         * { box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; }
         body { margin: 0; min-width: 230px; color: var(--vscode-foreground); background: var(--vscode-sideBar-background); font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); }
         button, textarea, select { font: inherit; }
-        .shell { min-height: 100vh; display: grid; grid-template-rows: auto 1fr auto; }
+        .shell { width: 100%; height: 100vh; min-height: 0; overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
         .topbar { padding: 11px 12px; border-top: 2px solid var(--vscode-focusBorder); border-bottom: 1px solid var(--vscode-sideBar-border, var(--vscode-widget-border)); background: var(--vscode-sideBarSectionHeader-background, var(--vscode-sideBar-background)); }
         .conversation-bar { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: end; gap: 6px; margin-bottom: 9px; }
         .conversation-select { min-width: 0; }
@@ -374,7 +375,12 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         .user header { width: min(88%, 680px); flex-direction: row-reverse; }
         .user p { width: fit-content; max-width: min(88%, 680px); padding: 9px 11px; border: 1px solid var(--vscode-focusBorder); border-radius: 6px 6px 2px 6px; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); }
         .assistant { padding-left: 10px; border-left: 2px solid var(--vscode-focusBorder); }
-        .activity { margin-top: 9px; padding: 7px; max-height: 150px; overflow: auto; border: 1px solid var(--vscode-widget-border); background: var(--vscode-textCodeBlock-background); color: var(--vscode-descriptionForeground); font-family: var(--vscode-editor-font-family); font-size: 11px; white-space: pre-wrap; }
+        .activity-wrap { margin-top: 9px; border: 1px solid var(--vscode-widget-border); background: var(--vscode-textCodeBlock-background); }
+        .activity-toggle { width: 100%; height: 23px; display: flex; align-items: center; gap: 5px; padding: 0 6px; border: 0; border-radius: 0; color: var(--vscode-descriptionForeground); background: transparent; cursor: pointer; font-size: 10px; text-align: left; }
+        .activity-toggle:hover { color: var(--vscode-foreground); background: var(--vscode-toolbar-hoverBackground); }
+        .activity-toggle .chevron { width: 10px; font-size: 9px; }
+        .activity { padding: 7px; max-height: 150px; overflow: auto; border-top: 1px solid var(--vscode-widget-border); color: var(--vscode-descriptionForeground); font-family: var(--vscode-editor-font-family); font-size: 11px; white-space: pre-wrap; }
+        .activity-wrap.collapsed .activity { display: none; }
         .route { margin-top: 9px; color: var(--vscode-descriptionForeground); font-size: 11px; }
         .composer { padding: 12px; border-top: 1px solid var(--vscode-sideBar-border, var(--vscode-widget-border)); background: var(--vscode-sideBarSectionHeader-background, var(--vscode-sideBar-background)); }
         .input-wrap { border: 1px solid var(--vscode-input-border, var(--vscode-widget-border)); background: var(--vscode-input-background); border-radius: 4px; }

@@ -408,5 +408,6 @@ class AsyncEventQueue<T> implements AsyncIterable<T> {
 }
 
 function isNoCostModel(value: string): boolean {
-    return value.startsWith("ollama/") || value.startsWith("groq/") || (value.startsWith("openrouter/") && value.endsWith(":free"));
+    const freePrefixes = ["ollama/", "groq/", "nvidia/", "gemini/", "cerebras/", "mistral/"];
+    return freePrefixes.some((prefix) => value.startsWith(prefix)) || (value.startsWith("openrouter/") && value.endsWith(":free"));
 }

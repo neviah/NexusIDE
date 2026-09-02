@@ -36,6 +36,8 @@ test("chat webview script attaches controls and announces readiness", () => {
 
     new vm.Script(source).runInContext(context);
     assert.equal(JSON.stringify(posted), JSON.stringify([{ type: "ready" }]));
+    assert.match(source, /activity-toggle/);
+    assert.match(source, /requestAnimationFrame\(\(\) => \{ transcript\.scrollTop = transcript\.scrollHeight; \}\)/);
 
     modes[3].handlers.get("click")?.({ preventDefault: () => undefined });
     const promptInput = elements.get("prompt")!;

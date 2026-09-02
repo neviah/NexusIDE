@@ -43,6 +43,14 @@
         const id = event.target.dataset.remove;
         if (id) vscode.postMessage({ type: "removeAttachment", id });
     });
+    transcript.addEventListener("click", (event) => {
+        const toggle = event.target.closest?.(".activity-toggle");
+        if (!toggle) return;
+        const container = toggle.parentElement;
+        const collapsed = container.classList.toggle("collapsed");
+        toggle.setAttribute("aria-expanded", String(!collapsed));
+        toggle.querySelector(".chevron").textContent = collapsed ? "▶" : "▼";
+    });
     promptInput.addEventListener("keydown", (event) => {
         if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
@@ -103,22 +111,30 @@
             sendButton.title = "Stop";
             setStatus("Preparing routes");
             responseNode = appendTurn(message.prompt, message.meta, "", "", message.createdAt);
-            transcript.scrollTop = transcript.scrollHeight;
+            scrollToLatest();
         }
         if (message.type === "delta" && responseNode) {
             responseNode.textContent += message.text;
-            transcript.scrollTop = transcript.scrollHeight;
+            scrollToLatest();
         }
         if (message.type === "agentActivity" && responseNode) {
             let activity = responseNode.parentElement.querySelector(".activity");
             if (!activity) {
+                const container = document.createElement("div");
+                container.className = "activity-wrap";
+                const toggle = document.createElement("button");
+                toggle.className = "activity-toggle";
+                toggle.type = "button";
+                toggle.setAttribute("aria-expanded", "true");
+                toggle.innerHTML = '<span class="chevron">▼</span><span>Activity</span>';
                 activity = document.createElement("div");
                 activity.className = "activity";
-                responseNode.parentElement.insertBefore(activity, responseNode.parentElement.querySelector(".route"));
+                container.append(toggle, activity);
+                responseNode.parentElement.insertBefore(container, responseNode.parentElement.querySelector(".route"));
             }
             activity.textContent += `${activity.textContent ? "\n" : ""}${message.text}`;
             activity.scrollTop = activity.scrollHeight;
-            transcript.scrollTop = transcript.scrollHeight;
+            scrollToLatest();
         }
         if (message.type === "runDone") {
             const routes = transcript.querySelectorAll(".route");
@@ -173,6 +189,10 @@
         if (!value) return "";
         const date = new Date(value);
         return Number.isNaN(date.getTime()) ? "" : date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
+    }
+
+    function scrollToLatest() {
+        requestAnimationFrame(() => { transcript.scrollTop = transcript.scrollHeight; });
     }
 
     vscode.postMessage({ type: "ready" });

@@ -73,6 +73,7 @@ test("model selection never falls through to a paid default", () => {
     }];
     assert.equal(selectFreeModel(config, "auto").value, "groq/free-plan");
     assert.equal(selectFreeModel(config, "auto", ["ollama/qwen", "groq/free-plan"]).value, "ollama/qwen");
+    assert.equal(selectFreeModel([{ ...config[0], options: [...config[0].options, { name: "Cerebras", value: "cerebras/qwen" }] }], "auto", ["cerebras/qwen"]).value, "cerebras/qwen");
     assert.equal(selectFreeModel(config, "openrouter").value, "openrouter/example:free");
     assert.throws(() => selectFreeModel([{ ...config[0], options: config[0].options.slice(0, 1) }], "auto"), /no configured local or explicitly free model/);
 });

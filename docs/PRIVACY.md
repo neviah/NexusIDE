@@ -1,6 +1,6 @@
 # Privacy
 
-NexusIDE does not add product telemetry to Code-OSS. AI requests are sent only to the route selected in Nexus Router: local Ollama, Groq, OpenRouter, or a user-configured compatible endpoint.
+NexusIDE does not add product telemetry to Code-OSS. AI requests are sent only to the route selected in Nexus Router. Supported routes include local Ollama, a user-configured compatible endpoint, and explicitly configured cloud providers shown in the Provider Catalog.
 
 Provider credentials are stored through VS Code SecretStorage. They are not written to workspace files, ordinary extension state, logs, prompts, or release artifacts. Operational logs redact known credentials and prompt content.
 
