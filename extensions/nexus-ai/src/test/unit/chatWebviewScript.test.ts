@@ -5,9 +5,7 @@ import test from "node:test";
 import vm from "node:vm";
 
 test("chat webview script attaches controls and announces readiness", () => {
-    const source = readFileSync(path.join(process.cwd(), "src", "nexusChatViewProvider.ts"), "utf8");
-    const match = source.match(/<script nonce="\$\{nonce\}">([\s\S]*?)<\/script>/);
-    assert.ok(match, "Chat webview script was not found.");
+    const source = readFileSync(path.join(process.cwd(), "media", "chat.js"), "utf8");
 
     const posted: unknown[] = [];
     type Handler = (event: { key?: string; shiftKey?: boolean; preventDefault(): void; target?: FakeElement }) => void;
@@ -36,7 +34,7 @@ test("chat webview script attaches controls and announces readiness", () => {
         window: { addEventListener: () => undefined },
     });
 
-    new vm.Script(match[1]).runInContext(context);
+    new vm.Script(source).runInContext(context);
     assert.equal(JSON.stringify(posted), JSON.stringify([{ type: "ready" }]));
 
     modes[3].handlers.get("click")?.({ preventDefault: () => undefined });

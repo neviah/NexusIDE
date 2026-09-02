@@ -24,6 +24,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
     private activeRun?: AbortController;
     private activeRunId?: string;
     private attachments: ContextAttachment[] = [];
+    private viewReady = false;
 
     public constructor(
         private readonly extensionUri: vscode.Uri,
@@ -41,6 +42,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
 
     public resolveWebviewView(view: vscode.WebviewView): void {
         this.view = view;
+        this.viewReady = false;
         view.webview.options = {
             enableScripts: true,
             localResourceRoots: [this.extensionUri],
@@ -48,10 +50,16 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         view.webview.onDidReceiveMessage((message: WebviewMessage) => this.handleMessage(message));
         view.onDidDispose(() => this.activeRun?.abort());
         view.webview.html = this.getHtml(view.webview);
+        setTimeout(() => {
+            if (!this.viewReady && this.view === view) {
+                void vscode.window.showErrorMessage("Nexus AI chat controls failed to load. Run Developer: Reload Window.");
+            }
+        }, 3_000);
     }
 
     private async handleMessage(message: WebviewMessage): Promise<void> {
         if (message.type === "ready") {
+            this.viewReady = true;
             await this.initializeView();
             return;
         }
@@ -308,13 +316,13 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     private getHtml(webview: vscode.Webview): string {
-        const nonce = createNonce();
+        const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, "media", "chat.js"));
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src ${webview.cspSource};">
     <title>Nexus AI</title>
     <style>
         :root { color-scheme: light dark; }
@@ -392,7 +400,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
             </div>
         </section>
     </main>
-    <script nonce="${nonce}">(() => {
+    <script src="${scriptUri}"></script><script type="application/x-disabled">(() => {
         const vscode = acquireVsCodeApi();
         const transcript = document.getElementById('transcript');
         const promptInput = document.getElementById('prompt');
