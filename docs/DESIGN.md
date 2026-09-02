@@ -164,7 +164,7 @@ interface HarnessManifest {
 
 Agent events normalize text deltas, tool requests, approvals, file edits, command starts, command output, diagnostics, route metadata, completion, cancellation, and failure. Capabilities are discovered rather than inferred from a harness name.
 
-OpenCode uses the official ACP SDK over newline-delimited JSON on supervised stdio. NexusIDE injects a restrictive runtime permission overlay, owns permission prompts and client file methods, and selects an advertised local or free-tier model through `session/set_config_option` before sending a prompt.
+OpenCode uses the official ACP SDK over newline-delimited JSON on supervised stdio. NexusIDE injects a restrictive runtime permission overlay, host-shell instructions, and a verified-step contract; it owns permission prompts and client file methods, and selects an advertised local or free-tier model through `session/set_config_option` before sending a prompt.
 
 ### 6.3 File Safety
 

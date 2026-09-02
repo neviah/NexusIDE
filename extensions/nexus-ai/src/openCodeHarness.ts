@@ -81,7 +81,7 @@ export interface AgentMcpServer {
 export type AgentMcpProvider = () => Promise<readonly AgentMcpServer[]>;
 
 /** Only servers the user explicitly trusted reach the harness; the caller performs that filtering. */
-export function buildOpenCodeConfig(servers: readonly AgentMcpServer[]): string {
+export function buildOpenCodeConfig(servers: readonly AgentMcpServer[], platform = process.platform): string {
     const mcp = Object.fromEntries(servers.map((server) => [
         server.id,
         server.connection.transport === "http"
@@ -103,7 +103,17 @@ export function buildOpenCodeConfig(servers: readonly AgentMcpServer[]): string 
                     : {}),
             },
     ]));
-    return JSON.stringify(servers.length ? { ...OPEN_CODE_POLICY, mcp } : OPEN_CODE_POLICY);
+    const shell = platform === "win32" ? "pwsh" : undefined;
+    const prompt = platform === "win32"
+        ? "You are working on Windows in PowerShell. Use PowerShell commands and syntax only: Get-ChildItem, Test-Path, Select-Object, and Out-Null; do not use Unix paths, /dev/null, head, ls flags, or shell redirection intended for bash. Treat every tool response as evidence: inspect it, stop and correct failures, and never claim a file, Unity asset, or folder was created unless the tool result confirms it. Prefer trusted Unity MCP tools for Unity Editor changes. Work in small verified steps for large requests."
+        : "Treat every tool response as evidence: inspect it, stop and correct failures, and never claim a file or asset was created unless the tool result confirms it. Work in small verified steps for large requests.";
+    const runtime = {
+        ...OPEN_CODE_POLICY,
+        ...(shell ? { shell } : {}),
+        agent: { build: { prompt } },
+        ...(servers.length ? { mcp } : {}),
+    };
+    return JSON.stringify(runtime);
 }
 
 interface ActiveRun {

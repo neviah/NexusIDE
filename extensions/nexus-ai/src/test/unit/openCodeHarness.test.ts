@@ -10,7 +10,7 @@ import type {
     WriteTextFileRequest,
 } from "@agentclientprotocol/sdk" with { "resolution-mode": "import" };
 import { AgentEvent, requireContainedPath } from "@nexus/ai-core";
-import { isDeniedAgentOperation, OpenCodeHarness, OpenCodeHost, OpenCodeProcessFactory, requiresExplicitAgentApproval, selectFreeModel } from "../../openCodeHarness";
+import { buildOpenCodeConfig, isDeniedAgentOperation, OpenCodeHarness, OpenCodeHost, OpenCodeProcessFactory, requiresExplicitAgentApproval, selectFreeModel } from "../../openCodeHarness";
 
 test("OpenCode ACP adapter passes the reusable harness lifecycle", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "nexus-acp-"));
@@ -58,6 +58,18 @@ test("commit and push require approval while destructive operations stay denied"
     assert.equal(isDeniedAgentOperation("git reset --hard HEAD~1"), true);
     assert.equal(isDeniedAgentOperation("git clean -fd"), true);
     assert.equal(isDeniedAgentOperation("npm publish"), true);
+});
+
+test("OpenCode receives a Windows-specific shell and verified-step contract", () => {
+    const config = JSON.parse(buildOpenCodeConfig([], "win32")) as { shell?: string; agent?: { build?: { prompt?: string } } };
+    assert.equal(config.shell, "pwsh");
+    assert.match(config.agent?.build?.prompt ?? "", /PowerShell/);
+    assert.match(config.agent?.build?.prompt ?? "", /never claim/);
+    assert.match(config.agent?.build?.prompt ?? "", /Unity MCP/);
+
+    const posix = JSON.parse(buildOpenCodeConfig([], "linux")) as { shell?: string; agent?: { build?: { prompt?: string } } };
+    assert.equal(posix.shell, undefined);
+    assert.match(posix.agent?.build?.prompt ?? "", /tool response/);
 });
 
 test("model selection never falls through to a paid default", () => {
