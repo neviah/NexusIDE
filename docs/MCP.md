@@ -1,0 +1,72 @@
+# Model Context Protocol Servers
+
+## Purpose
+
+MCP servers extend Agent mode with external tools, such as driving the Unity Editor. An MCP server is executable third-party capability, so NexusIDE treats every server as untrusted until the user approves it against a visible description of what it runs or contacts.
+
+## Trust Model
+
+Connecting to an MCP server is never implicit.
+
+- No server starts, and no tools are advertised to a harness, before explicit trust is granted.
+- Trust is granted per server and bound to a fingerprint of its executable surface: transport, command, arguments, working directory, environment, and endpoint URL.
+- Trust is also bound to the definition source. A grant made for your own settings does not carry over to a workspace-supplied definition, even when the two are byte-for-byte identical.
+- Editing any fingerprinted value invalidates the grant. The server returns to a `changed` state and requires a new decision instead of silently reusing the previous approval.
+- Header values are excluded from the fingerprint so a rotated bearer token does not revoke a valid grant. The endpoint URL is included, so redirecting a server to a different host does.
+- Revoking trust disconnects the server immediately.
+
+### Definition Sources
+
+| Source | Meaning | Trusted automatically |
+| --- | --- | --- |
+| `builtin` | Preset shipped by NexusIDE, currently the Unity endpoint | No |
+| `user` | Defined in the user's own settings | No |
+| `workspace` | Defined by the opened workspace or folder settings | No, and labelled as workspace-supplied |
+
+Workspace settings travel inside cloned repositories, so a definition found there is attacker-controlled. Such definitions are always labelled as workspace-supplied, including after they are trusted, and they can never inherit a grant belonging to a user-defined server. Trust records written before source tracking existed fail closed and require a fresh decision for workspace definitions.
+
+### Execution Class
+
+The consent prompt states the concrete consequence rather than a generic warning:
+
+- `stdio` servers run a program on the local machine. They additionally require Workspace Trust, because starting a process is code execution.
+- Non-loopback `http` servers receive tool requests, including data the agent chooses to send.
+- Loopback `http` servers are identified as local services. The Unity server is normally one of these.
+
+## Credentials
+
+Per-server tokens are stored in VS Code SecretStorage under the `nexusAI.mcp.` prefix, never in workspace files or settings. Tokens are sent as an `Authorization: Bearer` header for HTTP servers and as `MCP_TOKEN` for local servers. Tokens are added to the redaction set before any harness output reaches the transcript or audit log. Webviews receive server status and tool names only; they never receive credentials.
+
+## Unity
+
+The Unity integration targets [IvanMurzak/Unity-MCP](https://github.com/IvanMurzak/Unity-MCP), which exposes Unity Editor tools over standard MCP.
+
+1. Install the `AI Game Developer` plugin in the Unity project.
+2. Open the project in Unity. The plugin runs the MCP server, by default on port `8080` with the `streamableHttp` transport.
+3. In NexusIDE, run `NexusIDE: Connect Unity MCP Server`, or use the MCP Servers view in the Nexus Router container.
+4. Confirm the trust prompt. NexusIDE connects, lists the available Unity tools, and exposes them to Agent mode.
+
+NexusIDE detects a Unity project by the presence of both `Assets` and `ProjectSettings` directories in a workspace folder and then offers the connector once. It does not connect automatically.
+
+If the endpoint does not answer at the configured URL, NexusIDE also tries the `/mcp` path before reporting a failure, because servers differ in whether the base URL or the `/mcp` suffix is the endpoint. Use the exact URL shown in Unity's `AI Game Developer` window when in doubt. Set `MCP_AUTHORIZATION=token` in Unity and store the matching token in NexusIDE when the server requires authentication.
+
+## Configuration
+
+Servers are declared under `nexusAI.mcp.servers`. Prefer the `Add MCP Server` command, which writes user-scoped settings and validates input.
+
+```json
+{
+  "nexusAI.mcp.servers": {
+    "unity": { "transport": "http", "url": "http://localhost:8080" },
+    "docs": { "transport": "stdio", "command": "npx", "args": ["-y", "my-mcp-server"] }
+  }
+}
+```
+
+Invalid entries are discarded rather than partially applied: identifiers must be alphanumeric, URLs must be `http` or `https`, and local servers must name a command.
+
+Credentials belong in SecretStorage through the `Set Token` action, not in `headers` or `env`, because settings files are stored in plain text and workspace settings are committed to repositories.
+
+## Agent Integration
+
+Trusted servers are passed to the OpenCode harness through its supervised process configuration, so their tools become available alongside built-in ones. The existing agent policy is unchanged: edits and shell commands still require approval, and destructive command patterns remain denied. Tools obtained from an MCP server do not widen the file, path, or command policy.

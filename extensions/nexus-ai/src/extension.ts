@@ -15,12 +15,17 @@ import { buildSupportDiagnostics } from "./supportDiagnostics";
 import { StartupRecovery } from "./startupRecovery";
 import { CookbookViewProvider } from "./cookbookViewProvider";
 import { RouteStackViewProvider } from "./routeStackViewProvider";
+import { McpTrustStore } from "./mcpTrustStore";
+import { McpServerManager } from "./mcpServerManager";
+import { McpViewProvider } from "./mcpViewProvider";
+import { findUnityProjects, MCP_SECRET_PREFIX, parseCommandLine, readServerDefinitions, UNITY_DEFAULT_URL, UNITY_SERVER_ID } from "./mcpServers";
 
 const VIEW_ID = "nexusAI.chat";
 const CONTAINER_ID = "workbench.view.extension.nexus-ai";
 const ROUTER_VIEW_ID = "nexusRouter.providers";
 const STACK_VIEW_ID = "nexusRouter.stack";
 const COOKBOOK_VIEW_ID = "nexusCookbook.models";
+const MCP_VIEW_ID = "nexusRouter.mcp";
 let startupRecovery: StartupRecovery | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
@@ -43,6 +48,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const languageToolingOutput = vscode.window.createOutputChannel("NexusIDE Language Tooling");
     const agentHost = new WorkspaceAgentHost();
     const openCodePath = vscode.workspace.getConfiguration("nexusAI").get("openCodePath", "").trim();
+    const mcpTrust = new McpTrustStore(context.globalState);
+    const mcpManager = new McpServerManager(mcpTrust, secretStore, readServerDefinitions);
     const agentHarness = new OpenCodeHarness(agentHost, openCodePath || undefined, undefined, async () => {
         const openRouterKey = await secretStore.get(OPENROUTER_API_KEY);
         const groqKey = await secretStore.get(GROQ_API_KEY);
@@ -55,6 +62,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             if (apiKey) environment[provider.environmentKey] = apiKey;
         }
         return environment;
+    }, async () => {
+        const trusted = mcpManager.trustedDefinitions();
+        return await Promise.all(trusted.map(async (definition) => ({
+            id: definition.id,
+            connection: definition.connection,
+            token: await secretStore.get(MCP_SECRET_PREFIX + definition.id),
+        })));
     });
     const setProviderKey = async (provider: string, secretKey: string): Promise<void> => {
         const apiKey = await vscode.window.showInputBox({
@@ -109,10 +123,74 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     });
     const cookbookProvider = new CookbookViewProvider();
     const stackProvider = new RouteStackViewProvider(providers, routeStack, providerState);
+    const setMcpToken = async (id: string): Promise<void> => {
+        const token = await vscode.window.showInputBox({
+            title: `Set Token for MCP Server "${id}"`,
+            prompt: "Sent as an Authorization bearer header. Stored in the operating system credential store.",
+            password: true,
+            ignoreFocusOut: true,
+        });
+        if (token?.trim()) {
+            await secretStore.set(MCP_SECRET_PREFIX + id, token.trim());
+            await vscode.window.showInformationMessage(`Token stored for MCP server "${id}".`);
+        }
+    };
+    const addMcpServer = async (): Promise<void> => {
+        const transport = await vscode.window.showQuickPick(
+            [
+                { label: "Remote or local endpoint (http)", value: "http" as const },
+                { label: "Local program (stdio)", value: "stdio" as const, detail: "Runs a program on this computer" },
+            ],
+            { title: "Add MCP Server", placeHolder: "Choose how NexusIDE reaches the server" },
+        );
+        if (!transport) return;
+        const id = await vscode.window.showInputBox({
+            title: "MCP Server Id",
+            prompt: "Short identifier, for example unity.",
+            ignoreFocusOut: true,
+            validateInput: (value) => /^[a-z0-9][a-z0-9._-]*$/i.test(value.trim()) ? undefined : "Use letters, digits, dots, dashes, or underscores.",
+        });
+        if (!id) return;
+        const entry = transport.value === "http"
+            ? await (async () => {
+                const url = await vscode.window.showInputBox({
+                    title: "MCP Server URL",
+                    prompt: "Endpoint of the MCP server.",
+                    ignoreFocusOut: true,
+                    validateInput: validateProviderUrl,
+                });
+                return url ? { transport: "http", url: url.trim() } : undefined;
+            })()
+            : await (async () => {
+                const command = await vscode.window.showInputBox({
+                    title: "MCP Server Command",
+                    prompt: "Command and arguments, for example: npx -y my-mcp-server",
+                    ignoreFocusOut: true,
+                    validateInput: (value) => value.trim() ? undefined : "Enter the command that starts the server.",
+                });
+                if (!command?.trim()) return undefined;
+                const { command: executable, args } = parseCommandLine(command);
+                return { transport: "stdio", command: executable, args };
+            })();
+        if (!entry) return;
+        const configuration = vscode.workspace.getConfiguration("nexusAI.mcp");
+        const existing = configuration.inspect<Record<string, unknown>>("servers")?.globalValue ?? {};
+        await configuration.update("servers", { ...existing, [id.trim()]: entry }, vscode.ConfigurationTarget.Global);
+        await vscode.window.showInformationMessage(`MCP server "${id.trim()}" added. Trust it in the MCP Servers view before it runs.`);
+    };
+    const mcpProvider = new McpViewProvider(context.extensionUri, mcpManager, {
+        setToken: setMcpToken,
+        deleteToken: async (id) => {
+            await secretStore.delete(MCP_SECRET_PREFIX + id);
+            await vscode.window.showInformationMessage(`Token removed for MCP server "${id}".`);
+        },
+        addServer: addMcpServer,
+    });
 
     context.subscriptions.push(
         agentHost,
         stackProvider,
+        mcpManager,
         languageToolingOutput,
         vscode.window.registerWebviewViewProvider(VIEW_ID, provider, {
             webviewOptions: { retainContextWhenHidden: true },
@@ -120,6 +198,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         vscode.window.registerWebviewViewProvider(ROUTER_VIEW_ID, routerProvider),
         vscode.window.registerWebviewViewProvider(STACK_VIEW_ID, stackProvider),
         vscode.window.registerWebviewViewProvider(COOKBOOK_VIEW_ID, cookbookProvider),
+        vscode.window.registerWebviewViewProvider(MCP_VIEW_ID, mcpProvider),
+        vscode.commands.registerCommand("nexusAI.addMcpServer", addMcpServer),
+        vscode.commands.registerCommand("nexusAI.connectUnityMcp", async () => {
+            const configuration = vscode.workspace.getConfiguration("nexusAI.mcp");
+            const url = await vscode.window.showInputBox({
+                title: "Connect Unity MCP Server",
+                prompt: "Endpoint shown in the Unity 'AI Game Developer' window. Unity must be open with the plugin installed.",
+                value: configuration.get("unityUrl", UNITY_DEFAULT_URL),
+                ignoreFocusOut: true,
+                validateInput: validateProviderUrl,
+            });
+            if (!url) return;
+            await configuration.update("unityUrl", url.trim(), vscode.ConfigurationTarget.Global);
+            if (await mcpManager.requestTrust(UNITY_SERVER_ID)) {
+                await mcpManager.connect(UNITY_SERVER_ID);
+            }
+            await mcpProvider.refresh();
+            const status = (await mcpManager.status()).find(({ id }) => id === UNITY_SERVER_ID);
+            await vscode.window.showInformationMessage(`Unity MCP: ${status?.status ?? "unavailable"}`);
+        }),
         vscode.commands.registerCommand("nexusAI.open", async () => {
             await vscode.commands.executeCommand(CONTAINER_ID);
         }),
@@ -176,6 +274,27 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (vscode.workspace.getConfiguration("nexusAI").get("openOnStartup", true)) {
         await vscode.commands.executeCommand("workbench.view.explorer");
         await vscode.commands.executeCommand(CONTAINER_ID);
+    }
+
+    void notifyUnityProject(mcpManager);
+}
+
+/** Unity projects are offered the connector once trust is still absent; nothing connects implicitly. */
+async function notifyUnityProject(manager: McpServerManager): Promise<void> {
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    if (!folders.length || (await findUnityProjects(folders)).length === 0) {
+        return;
+    }
+    const unity = (await manager.status()).find(({ id }) => id === UNITY_SERVER_ID);
+    if (!unity || unity.trust === "trusted") {
+        return;
+    }
+    const choice = await vscode.window.showInformationMessage(
+        "Unity project detected. Connect the Unity MCP server to give Agent mode Unity Editor tools?",
+        "Connect Unity MCP",
+    );
+    if (choice === "Connect Unity MCP") {
+        await vscode.commands.executeCommand("nexusAI.connectUnityMcp");
     }
 }
 

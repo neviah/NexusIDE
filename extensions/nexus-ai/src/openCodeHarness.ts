@@ -28,7 +28,7 @@ type AcpModule = typeof Acp;
 
 const importEsm = new Function("specifier", "return import(specifier)") as (specifier: string) => Promise<AcpModule>;
 const DENIED_AGENT_OPERATION = /\b(git\s+(?:clean|reset\b.*--hard|checkout\s+--|restore)|(?:npm|pnpm|yarn)\s+publish|rm\s+-rf|rmdir\b|del\b|remove-item\b.*-recurse)\b/i;
-const OPEN_CODE_POLICY = JSON.stringify({
+const OPEN_CODE_POLICY = ({
     share: "disabled",
     permission: {
         edit: "ask",
@@ -61,6 +61,42 @@ export function isDeniedAgentOperation(operation: string): boolean {
     return DENIED_AGENT_OPERATION.test(operation);
 }
 
+export interface AgentMcpServer {
+    id: string;
+    connection:
+        | { transport: "stdio"; command: string; args?: readonly string[]; env?: Readonly<Record<string, string>>; cwd?: string }
+        | { transport: "http"; url: string; headers?: Readonly<Record<string, string>> };
+    token?: string;
+}
+
+export type AgentMcpProvider = () => Promise<readonly AgentMcpServer[]>;
+
+/** Only servers the user explicitly trusted reach the harness; the caller performs that filtering. */
+export function buildOpenCodeConfig(servers: readonly AgentMcpServer[]): string {
+    const mcp = Object.fromEntries(servers.map((server) => [
+        server.id,
+        server.connection.transport === "http"
+            ? {
+                type: "remote",
+                url: server.connection.url,
+                enabled: true,
+                ...(server.connection.headers || server.token
+                    ? { headers: { ...server.connection.headers, ...(server.token ? { Authorization: `Bearer ${server.token}` } : {}) } }
+                    : {}),
+            }
+            : {
+                type: "local",
+                command: [server.connection.command, ...(server.connection.args ?? [])],
+                enabled: true,
+                ...(server.connection.cwd ? { cwd: server.connection.cwd } : {}),
+                ...(server.connection.env || server.token
+                    ? { environment: { ...server.connection.env, ...(server.token ? { MCP_TOKEN: server.token } : {}) } }
+                    : {}),
+            },
+    ]));
+    return JSON.stringify(servers.length ? { ...OPEN_CODE_POLICY, mcp } : OPEN_CODE_POLICY);
+}
+
 interface ActiveRun {
     process: ChildProcessWithoutNullStreams;
     cancelSession?: () => Promise<void>;
@@ -88,6 +124,7 @@ export class OpenCodeHarness implements CodingHarness {
         executable?: string,
         processFactory?: OpenCodeProcessFactory,
         environmentProvider?: OpenCodeEnvironmentProvider,
+        private readonly mcpProvider?: AgentMcpProvider,
     ) {
         const resolvedExecutable = resolveOpenCodeExecutable(executable);
         this.processFactory = processFactory ?? ((cwd, env) => spawn(resolvedExecutable, ["acp"], {
@@ -118,11 +155,15 @@ export class OpenCodeHarness implements CodingHarness {
 
         const queue = new AsyncEventQueue<AgentEvent>();
         const childEnvironment = await this.environmentProvider();
-        const secrets = Object.values(childEnvironment).filter((value): value is string => typeof value === "string" && value.length > 0);
+        const mcpServers = (await this.mcpProvider?.()) ?? [];
+        const secrets = [
+            ...Object.values(childEnvironment).filter((value): value is string => typeof value === "string" && value.length > 0),
+            ...mcpServers.flatMap((server) => server.token ? [server.token] : []),
+        ];
         const child = this.processFactory(request.workspaceRoots[0], {
             ...process.env,
             ...childEnvironment,
-            OPENCODE_CONFIG_CONTENT: OPEN_CODE_POLICY,
+            OPENCODE_CONFIG_CONTENT: buildOpenCodeConfig(mcpServers),
         });
         const active: ActiveRun = { process: child };
         this.activeRuns.set(request.runId, active);

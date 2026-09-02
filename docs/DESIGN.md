@@ -73,6 +73,7 @@ The extension may host its webview UI with React, but security and workspace ope
 - Retry, fallback, quota, health, and cost policy.
 - Harness capability contracts and adapters.
 - Ollama and generic OpenAI-compatible transports.
+- Model Context Protocol client, transports, and server-trust primitives.
 - Cancellation and structured error types.
 - Contract-test fixtures.
 
@@ -95,7 +96,7 @@ The first implementation should run routing in the extension host unless a concr
 
 The layout is a default, not a locked arrangement. Users retain native resize, move, hide, and keyboard behavior.
 
-Nexus-owned sidebars use a compact operational-dashboard treatment within native workbench panes. The Router container places the ordered Auto Stack above provider configuration so route health, observed request usage, provider identity, and fallback order remain visible without adding another Activity Bar destination.
+Nexus-owned sidebars use a compact operational-dashboard treatment within native workbench panes. The Router container places the ordered Auto Stack above provider configuration so route health, observed request usage, provider identity, and fallback order remain visible without adding another Activity Bar destination. The same container hosts MCP Servers, where each server states what it runs or contacts and cannot connect before the user grants trust.
 
 ### 5.2 Chat Composer
 
@@ -120,6 +121,10 @@ The pane is constrained to the Secondary Side Bar viewport. Conversation content
 | Loop | Within trusted workspace | With approval policy | With approval policy | Bounded builder/critic refinement |
 
 Switching modes changes enforced capabilities, not merely the system prompt.
+
+### 5.4 External Tools
+
+Agent and Loop may use tools from Model Context Protocol servers. A server is inert until explicitly trusted, trust is bound to a fingerprint of everything the server can execute or reach, and workspace-supplied definitions are always labelled as such. MCP tools never widen the file, path, or command policy that Agent mode already enforces. See [MCP.md](MCP.md).
 
 ## 6. Coding Harness Contract
 

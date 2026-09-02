@@ -43,6 +43,29 @@
           "type": "string",
           "default": "http://127.0.0.1:1234/v1",
           "description": "API base URL for the optional custom OpenAI-compatible provider."
+        },
+        "nexusAI.mcp.unityUrl": {
+          "type": "string",
+          "default": "http://localhost:8080",
+          "description": "Endpoint of the Unity MCP server. Use the URL shown in the Unity 'AI Game Developer' window."
+        },
+        "nexusAI.mcp.servers": {
+          "type": "object",
+          "default": {},
+          "markdownDescription": "MCP servers available to Agent mode. Every server must be trusted in the MCP Servers view before it runs. Servers defined in workspace settings are marked as workspace-supplied and are never trusted automatically.",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "transport": { "type": "string", "enum": ["stdio", "http"] },
+              "label": { "type": "string" },
+              "command": { "type": "string" },
+              "args": { "type": "array", "items": { "type": "string" } },
+              "env": { "type": "object", "additionalProperties": { "type": "string" } },
+              "cwd": { "type": "string" },
+              "url": { "type": "string" },
+              "headers": { "type": "object", "additionalProperties": { "type": "string" } }
+            }
+          }
         }
       }
     },
@@ -92,6 +115,16 @@
         "command": "nexusAI.exportSupportDiagnostics",
         "title": "Export Support Diagnostics",
         "category": "NexusIDE"
+      },
+      {
+        "command": "nexusAI.addMcpServer",
+        "title": "Add MCP Server",
+        "category": "NexusIDE"
+      },
+      {
+        "command": "nexusAI.connectUnityMcp",
+        "title": "Connect Unity MCP Server",
+        "category": "NexusIDE"
       }
     ],
     "viewsContainers": {
@@ -131,6 +164,14 @@
           "name": "Providers and Models",
           "icon": "media/nexuside.svg",
           "visibility": "visible"
+        },
+        {
+          "type": "webview",
+          "id": "nexusRouter.mcp",
+          "name": "MCP Servers",
+          "icon": "media/nexuside.svg",
+          "visibility": "visible",
+          "accessibilityHelpContent": "Review Model Context Protocol servers, what each one runs or contacts, and grant or revoke trust. Servers never start until you trust them."
         }
       ],
       "nexus-cookbook": [

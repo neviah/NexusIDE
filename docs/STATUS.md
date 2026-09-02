@@ -38,6 +38,9 @@ Phase 9 engineering complete. Public beta publication is gated only on provision
 - The normalized `CodingHarness` contract and reusable deterministic ACP conformance fixture cover permission, read, two-file edit, shell output, failed-validation recovery, change reporting, secret redaction, and cancellation.
 - Agent safety requires Workspace Trust, canonical root containment, dirty-buffer and newer-disk checks, one-time native approvals, immutable diff previews, and fail-closed external path handling.
 - OpenCode receives Nexus-held Groq and OpenRouter credentials only through its supervised process environment; emitted values are redacted before reaching the webview or audit.
+- Model Context Protocol servers connect over streamable HTTP and stdio, with tool discovery, session handling, endpoint-path fallback, and structured protocol errors.
+- MCP servers stay inert until explicitly trusted; trust binds to a fingerprint of the command, arguments, environment, and endpoint, and workspace-supplied definitions are labelled and never trusted implicitly.
+- Unity projects are detected and the Unity MCP server can be trusted and connected, exposing its Editor tools to Agent mode without widening agent file or command policy.
 - Agent model selection occurs through ACP before prompting and permits Ollama, Groq free-tier, or explicit OpenRouter `:free` choices; paid defaults fail closed.
 - OpenCode ACP v1 initialization, session creation, and explicit free-model selection pass model-free runtime smoke tests on Windows.
 - Free-first routing persists rate-limit cooldowns and provider quota observations, excludes exhausted or cooling routes, and falls back without retrying a throttled route on the next request.

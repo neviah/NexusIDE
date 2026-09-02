@@ -4,6 +4,8 @@ NexusIDE does not add product telemetry to Code-OSS. AI requests are sent only t
 
 Provider credentials are stored through VS Code SecretStorage. They are not written to workspace files, ordinary extension state, logs, prompts, or release artifacts. Operational logs redact known credentials and prompt content.
 
+Model Context Protocol servers are inert until explicitly trusted. A trusted remote server receives the tool requests the agent sends it, including any workspace data contained in those requests, under that server's own terms. A trusted local server runs as a process on the machine and additionally requires a trusted workspace. Per-server tokens are held in SecretStorage, are never written to settings or workspace files, and are redacted from agent output.
+
 Ask and Design send only the prompt and context attachments shown for that turn. Agent mode may read files and run commands inside a trusted workspace after native approval prompts. Canonical path checks deny access outside the granted workspace, and destructive or publishing commands fail closed.
 
 Cloud providers receive submitted prompt content and attachments under their own privacy terms. Use Ollama for a local-only route. NexusIDE cannot make a third-party cloud service private or unlimited.
