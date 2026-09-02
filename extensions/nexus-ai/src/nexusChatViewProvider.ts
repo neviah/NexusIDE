@@ -347,16 +347,17 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         html, body { width: 100%; height: 100%; overflow: hidden; }
         body { margin: 0; min-width: 230px; color: var(--vscode-foreground); background: var(--vscode-sideBar-background); font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); }
         button, textarea, select { font: inherit; }
-        .shell { width: 100%; height: 100vh; min-height: 0; overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
-        .topbar { padding: 11px 12px; border-top: 2px solid var(--vscode-focusBorder); border-bottom: 1px solid var(--vscode-sideBar-border, var(--vscode-widget-border)); background: var(--vscode-sideBarSectionHeader-background, var(--vscode-sideBar-background)); }
+        .shell { width: 100%; min-width: 0; height: 100vh; min-height: 0; overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+        .shell > * { min-width: 0; }
+        .topbar { min-width: 0; padding: 11px 12px; border-top: 2px solid var(--vscode-focusBorder); border-bottom: 1px solid var(--vscode-sideBar-border, var(--vscode-widget-border)); background: var(--vscode-sideBarSectionHeader-background, var(--vscode-sideBar-background)); }
         .conversation-bar { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: end; gap: 6px; margin-bottom: 9px; }
         .conversation-select { min-width: 0; }
         .conversation-bar select { min-width: 0; }
         .conversation-actions { display: flex; gap: 3px; }
         .tool-button { width: 26px; height: 26px; padding: 0; border: 0; border-radius: 3px; color: var(--vscode-foreground); background: transparent; cursor: pointer; font-size: 16px; }
         .tool-button:hover { background: var(--vscode-toolbar-hoverBackground); }
-        .mode { display: grid; grid-template-columns: repeat(4, 1fr); height: 32px; padding: 2px; background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); border-radius: 4px; }
-        .mode button { border: 0; border-radius: 3px; color: var(--vscode-descriptionForeground); background: transparent; cursor: pointer; }
+        .mode { width: 100%; min-width: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); height: 32px; padding: 2px; background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); border-radius: 4px; }
+        .mode button { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 0; border-radius: 3px; color: var(--vscode-descriptionForeground); background: transparent; cursor: pointer; }
         .mode button[aria-pressed="true"] { color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
         .quality { display: none; grid-template-columns: minmax(0,1fr) 64px; gap: 7px; align-items: end; margin-top: 8px; }
         .quality.visible { display: grid; }
@@ -398,6 +399,9 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         .send { min-width: 30px; height: 28px; border: 0; border-radius: 3px; color: var(--vscode-button-foreground); background: var(--vscode-button-background); cursor: pointer; }
         .send:hover { background: var(--vscode-button-hoverBackground); }
         .send:disabled { opacity: .5; cursor: default; }
+        @media (max-width: 330px) {
+            .mode { grid-template-columns: repeat(2, minmax(0, 1fr)); height: 58px; }
+        }
     </style>
 </head>
 <body>

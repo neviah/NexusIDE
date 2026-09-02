@@ -6,6 +6,7 @@ import vm from "node:vm";
 
 test("chat webview script attaches controls and announces readiness", () => {
     const source = readFileSync(path.join(process.cwd(), "media", "chat.js"), "utf8");
+    const viewSource = readFileSync(path.join(process.cwd(), "src", "nexusChatViewProvider.ts"), "utf8");
 
     const posted: unknown[] = [];
     type Handler = (event: { key?: string; shiftKey?: boolean; preventDefault(): void; target?: FakeElement }) => void;
@@ -38,6 +39,10 @@ test("chat webview script attaches controls and announces readiness", () => {
     assert.equal(JSON.stringify(posted), JSON.stringify([{ type: "ready" }]));
     assert.match(source, /activity-toggle/);
     assert.match(source, /requestAnimationFrame\(\(\) => \{ transcript\.scrollTop = transcript\.scrollHeight; \}\)/);
+    assert.match(viewSource, /data-mode="design"/);
+    assert.match(viewSource, /data-mode="loop"/);
+    assert.match(viewSource, /grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
+    assert.match(viewSource, /@media \(max-width: 330px\)/);
 
     modes[3].handlers.get("click")?.({ preventDefault: () => undefined });
     const promptInput = elements.get("prompt")!;
