@@ -10,7 +10,7 @@ import type {
     WriteTextFileRequest,
     WriteTextFileResponse,
 } from "@agentclientprotocol/sdk" with { "resolution-mode": "import" };
-import { isDeniedAgentOperation } from "./openCodeHarness";
+import { isDeniedAgentOperation, requiresExplicitAgentApproval } from "./openCodeHarness";
 
 const PREVIEW_SCHEME = "nexus-agent-before";
 
@@ -18,6 +18,7 @@ export class WorkspaceAgentHost implements vscode.Disposable {
     private readonly snapshots = new Map<string, string>();
     private readonly previews = new Map<string, string>();
     private readonly previewProvider: vscode.Disposable;
+    private approvalSessionEnabled = false;
 
     public constructor() {
         this.previewProvider = vscode.workspace.registerTextDocumentContentProvider(PREVIEW_SCHEME, {
@@ -67,14 +68,22 @@ export class WorkspaceAgentHost implements vscode.Disposable {
         if (!allow) {
             return reject ? { outcome: { outcome: "selected", optionId: reject.optionId } } : { outcome: { outcome: "cancelled" } };
         }
+        if (this.approvalSessionEnabled && !requiresExplicitAgentApproval(operation)) {
+            return { outcome: { outcome: "selected", optionId: allow.optionId } };
+        }
 
         const detail = locations.length > 0 ? locations.join("\n") : operation;
         const selection = await vscode.window.showWarningMessage(
             params.toolCall.title ?? "OpenCode requests permission",
             { modal: true, detail },
             "Allow Once",
+            "Allow This Session",
         );
         if (selection === "Allow Once") {
+            return { outcome: { outcome: "selected", optionId: allow.optionId } };
+        }
+        if (selection === "Allow This Session") {
+            this.approvalSessionEnabled = true;
             return { outcome: { outcome: "selected", optionId: allow.optionId } };
         }
         return reject ? { outcome: { outcome: "selected", optionId: reject.optionId } } : { outcome: { outcome: "cancelled" } };

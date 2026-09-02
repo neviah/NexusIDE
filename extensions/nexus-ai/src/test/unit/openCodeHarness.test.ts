@@ -10,7 +10,7 @@ import type {
     WriteTextFileRequest,
 } from "@agentclientprotocol/sdk" with { "resolution-mode": "import" };
 import { AgentEvent, requireContainedPath } from "@nexus/ai-core";
-import { isDeniedAgentOperation, OpenCodeHarness, OpenCodeHost, OpenCodeProcessFactory, selectFreeModel } from "../../openCodeHarness";
+import { isDeniedAgentOperation, OpenCodeHarness, OpenCodeHost, OpenCodeProcessFactory, requiresExplicitAgentApproval, selectFreeModel } from "../../openCodeHarness";
 
 test("OpenCode ACP adapter passes the reusable harness lifecycle", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "nexus-acp-"));
@@ -52,6 +52,9 @@ test("OpenCode ACP adapter passes the reusable harness lifecycle", async () => {
 test("commit and push require approval while destructive operations stay denied", () => {
     assert.equal(isDeniedAgentOperation("git commit -m test"), false);
     assert.equal(isDeniedAgentOperation("git push origin main"), false);
+    assert.equal(requiresExplicitAgentApproval("git commit -m test"), true);
+    assert.equal(requiresExplicitAgentApproval("git push origin main"), true);
+    assert.equal(requiresExplicitAgentApproval("npm test"), false);
     assert.equal(isDeniedAgentOperation("git reset --hard HEAD~1"), true);
     assert.equal(isDeniedAgentOperation("git clean -fd"), true);
     assert.equal(isDeniedAgentOperation("npm publish"), true);

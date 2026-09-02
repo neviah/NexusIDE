@@ -28,6 +28,7 @@ type AcpModule = typeof Acp;
 
 const importEsm = new Function("specifier", "return import(specifier)") as (specifier: string) => Promise<AcpModule>;
 const DENIED_AGENT_OPERATION = /\b(git\s+(?:clean|reset\b.*--hard|checkout\s+--|restore)|(?:npm|pnpm|yarn)\s+publish|rm\s+-rf|rmdir\b|del\b|remove-item\b.*-recurse)\b/i;
+const EXPLICIT_APPROVAL_OPERATION = /\bgit\s+(?:commit|push)\b/i;
 const OPEN_CODE_POLICY = ({
     share: "disabled",
     permission: {
@@ -63,6 +64,10 @@ const OPEN_CODE_POLICY = ({
 
 export function isDeniedAgentOperation(operation: string): boolean {
     return DENIED_AGENT_OPERATION.test(operation);
+}
+
+export function requiresExplicitAgentApproval(operation: string): boolean {
+    return EXPLICIT_APPROVAL_OPERATION.test(operation);
 }
 
 export interface AgentMcpServer {
