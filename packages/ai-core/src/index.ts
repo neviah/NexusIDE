@@ -1,4 +1,5 @@
 export * from "./contracts";
+export * from "./catalogProviders";
 export * from "./errors";
 export * from "./harness";
 export * from "./mcp";
@@ -8,5 +9,6 @@ export * from "./openAiCompatible";
 export * from "./redaction";
 export * from "./registry";
 export * from "./router";
+export * from "./smoke";
 export * from "./streaming";
 export * from "./workspacePaths";

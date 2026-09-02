@@ -41,6 +41,8 @@ Phase 9 engineering complete. Public beta publication is gated only on provision
 - Model Context Protocol servers connect over streamable HTTP and stdio, with tool discovery, session handling, endpoint-path fallback, and structured protocol errors.
 - MCP servers stay inert until explicitly trusted; trust binds to a fingerprint of the command, arguments, environment, and endpoint, and workspace-supplied definitions are labelled and never trusted implicitly.
 - Unity projects are detected and the Unity MCP server can be trusted and connected, exposing its Editor tools to Agent mode without widening agent file or command policy.
+- An opt-in live smoke harness verifies configured providers end to end against real endpoints, exercising only local and free-tier routes and refusing trial, mixed, and paid routes.
+- Catalog provider endpoints are defined once in `@nexus/ai-core` and consumed by both the extension runtime and the smoke harness, so a corrected endpoint cannot go stale in one of them.
 - Agent model selection occurs through ACP before prompting and permits Ollama, Groq free-tier, or explicit OpenRouter `:free` choices; paid defaults fail closed.
 - OpenCode ACP v1 initialization, session creation, and explicit free-model selection pass model-free runtime smoke tests on Windows.
 - Free-first routing persists rate-limit cooldowns and provider quota observations, excludes exhausted or cooling routes, and falls back without retrying a throttled route on the next request.

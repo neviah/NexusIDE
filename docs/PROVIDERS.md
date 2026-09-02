@@ -133,6 +133,20 @@ Quota tracking is advisory. The provider response remains authoritative.
 7. Verify secret redaction and paid-route blocking.
 8. Add setup and troubleshooting documentation.
 
+## Live Verification
+
+Mocked contract tests prove NexusIDE handles a provider's protocol; they cannot prove the endpoint still exists or that a key still works. `scripts/test-live-smoke.ps1` closes that gap and is opt-in, because it needs network access and real credentials.
+
+It reads credentials only from environment variables, never from SecretStorage, and exercises only `local` and `free-tier` routes. Trial, mixed, and paid routes are refused before any request is streamed, so a run cannot bill the user. Each provider is taken through credentials, health, discovery, and a real streamed completion with a minimal prompt and a small output budget.
+
+Outcomes are deliberately distinct:
+
+- `passed`: the provider streamed real text and completed.
+- `skipped`: no credentials, or no no-cost model offered. Nothing is proven, and a run where everything skipped is not a pass.
+- `failed`: the provider is configured but did not work.
+
+Only the streamed completion is conclusive. Several providers serve model discovery from a public endpoint, so credential and health checks can succeed with an invalid key and fail only at generation time. Set `NEXUS_SMOKE_MCP_URL` to additionally verify that an MCP server, such as Unity, initializes and reports tools.
+
 ## Observability
 
 Store bounded, redacted operational data:
