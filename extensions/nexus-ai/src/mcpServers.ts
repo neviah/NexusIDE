@@ -1,6 +1,8 @@
 import * as vscode from "vscode";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { McpServerDefinition } from "@nexus/ai-core";
-import { mergeUnityPreset, parseServerDefinitions, UNITY_DEFAULT_URL } from "./mcpServerDefinitions";
+import { mergeUnityPreset, parseServerDefinitions, parseWorkspaceMcpDocument, UNITY_DEFAULT_URL } from "./mcpServerDefinitions";
 
 export * from "./mcpServerDefinitions";
 
@@ -12,7 +14,8 @@ export function readServerDefinitions(): readonly McpServerDefinition[] {
         workspace: inspection?.workspaceValue,
         workspaceFolder: inspection?.workspaceFolderValue,
     });
-    return mergeUnityPreset(configured, configuration.get("unityUrl", UNITY_DEFAULT_URL));
+    const workspaceMcp = (vscode.workspace.workspaceFolders ?? []).flatMap(readWorkspaceMcpDocument);
+    return mergeUnityPreset(mergeDefinitions(configured, workspaceMcp), configuration.get("unityUrl", UNITY_DEFAULT_URL));
 }
 
 /** Unity projects always contain both of these sibling directories at the project root. */
@@ -34,4 +37,26 @@ async function directoryExists(uri: vscode.Uri): Promise<boolean> {
     } catch {
         return false;
     }
+}
+
+function readWorkspaceMcpDocument(folder: vscode.WorkspaceFolder): readonly McpServerDefinition[] {
+    const documentPath = path.join(folder.uri.fsPath, ".vscode", "mcp.json");
+    if (!existsSync(documentPath)) {
+        return [];
+    }
+    try {
+        return parseWorkspaceMcpDocument(JSON.parse(readFileSync(documentPath, "utf8")));
+    } catch {
+        return [];
+    }
+}
+
+function mergeDefinitions(...groups: readonly (readonly McpServerDefinition[])[]): readonly McpServerDefinition[] {
+    const definitions = new Map<string, McpServerDefinition>();
+    for (const group of groups) {
+        for (const definition of group) {
+            definitions.set(definition.id, definition);
+        }
+    }
+    return [...definitions.values()];
 }

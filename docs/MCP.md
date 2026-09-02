@@ -54,6 +54,8 @@ If the endpoint does not answer at the configured URL, NexusIDE also tries the `
 
 Servers are declared under `nexusAI.mcp.servers`. Prefer the `Add MCP Server` command, which writes user-scoped settings and validates input.
 
+NexusIDE also reads the standard workspace `.vscode/mcp.json` format used by VS Code and Unity's **Configure** button. Those entries remain workspace-supplied: NexusIDE shows their origin and requires an explicit trust decision before it connects or makes their tools available to Agent mode.
+
 ```json
 {
   "nexusAI.mcp.servers": {

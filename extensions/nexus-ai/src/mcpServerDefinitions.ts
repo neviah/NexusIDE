@@ -37,6 +37,12 @@ export function parseServerDefinitions(scopes: ServerConfigurationScopes): reado
     return [...definitions.values()];
 }
 
+/** Parses VS Code's standard mcp.json document as workspace-supplied definitions. */
+export function parseWorkspaceMcpDocument(value: unknown): readonly McpServerDefinition[] {
+    const document = asRecord(value);
+    return parseServerDefinitions({ workspace: document?.servers });
+}
+
 export function unityServerDefinition(url: string): McpServerDefinition {
     return {
         id: UNITY_SERVER_ID,
@@ -57,7 +63,8 @@ function parseConnection(entry: Record<string, unknown> | undefined): McpConnect
     if (!entry) {
         return undefined;
     }
-    if (entry.transport === "stdio" && typeof entry.command === "string") {
+    const transport = entry.transport ?? entry.type;
+    if ((transport === "stdio" || (transport === undefined && typeof entry.command === "string")) && typeof entry.command === "string") {
         return {
             transport: "stdio",
             command: entry.command,
@@ -66,7 +73,7 @@ function parseConnection(entry: Record<string, unknown> | undefined): McpConnect
             cwd: typeof entry.cwd === "string" ? entry.cwd : undefined,
         };
     }
-    if (entry.transport === "http" && typeof entry.url === "string") {
+    if (transport === "http" && typeof entry.url === "string") {
         return { transport: "http", url: entry.url, headers: asStringRecord(entry.headers) };
     }
     return undefined;

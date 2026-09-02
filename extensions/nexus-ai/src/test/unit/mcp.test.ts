@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { McpServerDefinition } from "@nexus/ai-core";
-import { mergeUnityPreset, parseCommandLine, parseServerDefinitions, unityServerDefinition, UNITY_DEFAULT_URL } from "../../mcpServerDefinitions";
+import { mergeUnityPreset, parseCommandLine, parseServerDefinitions, parseWorkspaceMcpDocument, unityServerDefinition, UNITY_DEFAULT_URL } from "../../mcpServerDefinitions";
 import { admitConnection, McpTrustStore } from "../../mcpTrustStore";
 import { buildOpenCodeConfig } from "../../openCodeHarness";
 
@@ -32,6 +32,20 @@ test("workspace-supplied server definitions keep their scope and never appear as
 
     assert.deepEqual(definitions.map(({ id, source }) => [id, source]), [["mine", "user"], ["repo", "workspace"], ["folder", "workspace"]]);
     assert.equal(definitions.find(({ id }) => id === "mine")?.label, "Mine");
+});
+
+test("standard VS Code mcp.json entries are workspace-supplied definitions", () => {
+    const definitions = parseWorkspaceMcpDocument({
+        servers: {
+            "ai-game-developer": { type: "http", url: "https://ai-game.dev/mcp/p/project-pin" },
+            local: { command: "npx", args: ["-y", "local-mcp"] },
+        },
+    });
+
+    assert.deepEqual(definitions.map(({ id, source, connection }) => [id, source, connection]), [
+        ["ai-game-developer", "workspace", { transport: "http", url: "https://ai-game.dev/mcp/p/project-pin", headers: undefined }],
+        ["local", "workspace", { transport: "stdio", command: "npx", args: ["-y", "local-mcp"], env: undefined, cwd: undefined }],
+    ]);
 });
 
 test("a workspace definition cannot impersonate a user definition by reusing its id", () => {
