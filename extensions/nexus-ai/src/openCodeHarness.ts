@@ -32,6 +32,10 @@ const OPEN_CODE_POLICY = ({
     share: "disabled",
     permission: {
         edit: "ask",
+        // Network egress is opt-in per request: fetched pages are untrusted input to an agent
+        // that can edit files, and the harness defaults every unlisted permission to allow.
+        webfetch: "ask",
+        websearch: "ask",
         bash: {
             "*": "ask",
             "git commit": "ask",

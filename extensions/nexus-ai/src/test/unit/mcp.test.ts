@@ -154,6 +154,9 @@ test("the agent receives only trusted servers and keeps the destructive-command 
     const empty = JSON.parse(buildOpenCodeConfig([])) as Record<string, unknown>;
     assert.equal("mcp" in empty, false);
     assert.equal((empty.permission as Record<string, unknown>).edit, "ask");
+    // The harness allows every unlisted permission, so network egress must be named explicitly.
+    assert.equal((empty.permission as Record<string, unknown>).webfetch, "ask");
+    assert.equal((empty.permission as Record<string, unknown>).websearch, "ask");
 
     const config = JSON.parse(buildOpenCodeConfig([
         { id: "unity", connection: { transport: "http", url: "http://localhost:8080" }, token: "unity-token" },
