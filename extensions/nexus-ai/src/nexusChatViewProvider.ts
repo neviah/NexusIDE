@@ -304,10 +304,9 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
                 await this.post({ type: "runDone", route, completedAt: turn.completedAt });
             }
         } catch (error) {
-            const normalized = normalizeError(error);
             await this.post(run.signal.aborted
                 ? { type: "runStopped" }
-                : { type: "runError", text: normalized.message, route });
+                : { type: "runError", text: agentErrorMessage(error), route });
         } finally {
             if (this.activeRun === run) {
                 this.activeRun = undefined;
@@ -611,6 +610,15 @@ function formatAuditSummary(summary: AgentRunSummary): string {
         ? summary.validations.map((validation) => `${validation.exitCode === 0 ? "passed" : "failed"} (${validation.exitCode ?? "terminated"}): ${validation.command}`).join("\n")
         : "No validations run";
     return `\n\nRun ${summary.status}\n${files}\n${validations}`;
+}
+
+function agentErrorMessage(error: unknown): string {
+    const message = error instanceof Error ? error.message : "";
+    // These policy failures contain no sensitive provider or workspace data and need direct guidance.
+    if (message === "Agent mode requires a trusted workspace." || message === "Open a workspace folder before starting Agent mode.") {
+        return message;
+    }
+    return normalizeError(error).message;
 }
 
 function createNonce(): string {
