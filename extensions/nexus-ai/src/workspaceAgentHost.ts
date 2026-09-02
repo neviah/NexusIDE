@@ -68,7 +68,7 @@ export class WorkspaceAgentHost implements vscode.Disposable {
         if (!allow) {
             return reject ? { outcome: { outcome: "selected", optionId: reject.optionId } } : { outcome: { outcome: "cancelled" } };
         }
-        if (this.approvalSessionEnabled && !requiresExplicitAgentApproval(operation)) {
+        if (this.approvalSessionEnabled && !requiresExplicitAgentApproval(operation) && !isMcpToolCall(params)) {
             return { outcome: { outcome: "selected", optionId: allow.optionId } };
         }
 
@@ -198,4 +198,9 @@ export class WorkspaceAgentHost implements vscode.Disposable {
 
 function digest(content: string): string {
     return createHash("sha256").update(content).digest("hex");
+}
+
+function isMcpToolCall(params: RequestPermissionRequest): boolean {
+    const title = params.toolCall.title ?? "";
+    return /\b(?:unity|ai-game-developer)[_-]/i.test(title);
 }

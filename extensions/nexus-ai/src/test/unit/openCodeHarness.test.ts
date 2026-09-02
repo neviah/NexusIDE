@@ -58,6 +58,9 @@ test("commit and push require approval while destructive operations stay denied"
     assert.equal(isDeniedAgentOperation("git reset --hard HEAD~1"), true);
     assert.equal(isDeniedAgentOperation("git clean -fd"), true);
     assert.equal(isDeniedAgentOperation("npm publish"), true);
+    assert.equal(isDeniedAgentOperation("Set-Content UserSettings/AI-Game-Developer-Config.json"), true);
+    assert.equal(isDeniedAgentOperation("set UNITY_MCP_HOST=http://localhost:8080"), true);
+    assert.equal(isDeniedAgentOperation("change connectionMode to Local"), true);
 });
 
 test("OpenCode receives a Windows-specific shell and verified-step contract", () => {
@@ -66,10 +69,16 @@ test("OpenCode receives a Windows-specific shell and verified-step contract", ()
     assert.match(config.agent?.build?.prompt ?? "", /PowerShell/);
     assert.match(config.agent?.build?.prompt ?? "", /never claim/);
     assert.match(config.agent?.build?.prompt ?? "", /Unity MCP/);
+    assert.match(config.agent?.build?.prompt ?? "", /Never modify Unity UserSettings/);
 
     const posix = JSON.parse(buildOpenCodeConfig([], "linux")) as { shell?: string; agent?: { build?: { prompt?: string } } };
     assert.equal(posix.shell, undefined);
     assert.match(posix.agent?.build?.prompt ?? "", /tool response/);
+});
+
+test("trusted MCP tools remain individually approved", () => {
+    const config = JSON.parse(buildOpenCodeConfig([{ id: "unity", connection: { transport: "http", url: "https://tools.example.test/mcp" } }])) as { permission: Record<string, unknown> };
+    assert.equal(config.permission["unity_*"], "ask");
 });
 
 test("model selection never falls through to a paid default", () => {

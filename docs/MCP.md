@@ -74,3 +74,5 @@ Credentials belong in SecretStorage through the `Set Token` action, not in `head
 ## Agent Integration
 
 Trusted servers are passed to the OpenCode harness through its supervised process configuration, so their tools become available alongside built-in ones. The existing agent policy is unchanged: edits and shell commands still require approval, and destructive command patterns remain denied. Tools obtained from an MCP server do not widen the file, path, or command policy.
+
+Unity MCP configuration is protected from Agent mode. The agent cannot modify `UserSettings`, `AI-Game-Developer-Config.json`, Unity MCP connection mode, endpoint, token, or server settings. Unity tool calls require their own approval and do not inherit the ordinary `Allow This Session` convenience setting.

@@ -27,7 +27,7 @@ import type {
 type AcpModule = typeof Acp;
 
 const importEsm = new Function("specifier", "return import(specifier)") as (specifier: string) => Promise<AcpModule>;
-const DENIED_AGENT_OPERATION = /\b(git\s+(?:clean|reset\b.*--hard|checkout\s+--|restore)|(?:npm|pnpm|yarn)\s+publish|rm\s+-rf|rmdir\b|del\b|remove-item\b.*-recurse)\b/i;
+const DENIED_AGENT_OPERATION = /\b(git\s+(?:clean|reset\b.*--hard|checkout\s+--|restore)|(?:npm|pnpm|yarn)\s+publish|rm\s+-rf|rmdir\b|del\b|remove-item\b.*-recurse|usersettings[\\/]|ai-game-developer-config\.json|unity_mcp_(?:host|keep_connected|token|auth_option|transport|start_server)|connectionmode)\b/i;
 const EXPLICIT_APPROVAL_OPERATION = /\bgit\s+(?:commit|push)\b/i;
 const OPEN_CODE_POLICY = ({
     share: "disabled",
@@ -104,12 +104,14 @@ export function buildOpenCodeConfig(servers: readonly AgentMcpServer[], platform
             },
     ]));
     const shell = platform === "win32" ? "pwsh" : undefined;
+    const mcpPermissions = Object.fromEntries(servers.map((server) => [`${server.id}_*`, "ask"]));
     const prompt = platform === "win32"
-        ? "You are working on Windows in PowerShell. Use PowerShell commands and syntax only: Get-ChildItem, Test-Path, Select-Object, and Out-Null; do not use Unix paths, /dev/null, head, ls flags, or shell redirection intended for bash. Treat every tool response as evidence: inspect it, stop and correct failures, and never claim a file, Unity asset, or folder was created unless the tool result confirms it. Prefer trusted Unity MCP tools for Unity Editor changes. Work in small verified steps for large requests."
-        : "Treat every tool response as evidence: inspect it, stop and correct failures, and never claim a file or asset was created unless the tool result confirms it. Work in small verified steps for large requests.";
+        ? "You are working on Windows in PowerShell. Use PowerShell commands and syntax only: Get-ChildItem, Test-Path, Select-Object, and Out-Null; do not use Unix paths, /dev/null, head, ls flags, or shell redirection intended for bash. Treat every tool response as evidence: inspect it, stop and correct failures, and never claim a file, Unity asset, or folder was created unless the tool result confirms it. Prefer trusted Unity MCP tools for Unity Editor changes. Never modify Unity UserSettings, AI-Game-Developer-Config.json, connection mode, MCP endpoint, token, or server configuration. Work in small verified steps for large requests."
+        : "Treat every tool response as evidence: inspect it, stop and correct failures, and never claim a file or asset was created unless the tool result confirms it. Never modify Unity UserSettings or MCP server configuration. Work in small verified steps for large requests.";
     const runtime = {
         ...OPEN_CODE_POLICY,
         ...(shell ? { shell } : {}),
+        permission: { ...OPEN_CODE_POLICY.permission, ...mcpPermissions },
         agent: { build: { prompt } },
         ...(servers.length ? { mcp } : {}),
     };
