@@ -5,12 +5,13 @@ import { ConversationStore } from "./conversationStore";
 import { WorkspaceContextCollector } from "./workspaceContext";
 import { ContextAttachment, ContextKind, formatContext } from "./workspaceContextTypes";
 import { runQualityLoop } from "./qualityLoop";
+import { RouteStackStore } from "./routeStackStore";
 
-type ChatMode = "ask" | "agent" | "design";
+type ChatMode = "ask" | "agent" | "design" | "loop";
 
 type WebviewMessage =
     | { type: "ready" }
-    | { type: "send"; prompt: string; mode: ChatMode; harness: string; model: ModelSelection; qualityLoop?: boolean; qualityBar?: string; maxRounds?: number }
+    | { type: "send"; prompt: string; mode: ChatMode; qualityBar?: string; maxRounds?: number }
     | { type: "attach"; kind: ContextKind }
     | { type: "removeAttachment"; id: string }
     | { type: "regenerate" }
@@ -30,6 +31,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         private readonly conversations: ConversationStore,
         private readonly contextCollector: WorkspaceContextCollector,
         private readonly agentHarness: CodingHarness,
+        private readonly routeStack: RouteStackStore,
     ) {
         const qualification = qualifyHarness(agentHarness.describe());
         if (qualification.mode !== "agent") {
@@ -127,19 +129,15 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         const run = new AbortController();
         this.activeRun = run;
         const harness = this.agentHarness.describe();
+        const agentMode = message.mode === "agent" || message.mode === "loop";
 
         await this.post({
             type: "runStart",
             prompt: message.prompt.trim(),
-            meta: `${label(message.mode)} / ${message.mode === "agent" ? harness.displayName : message.harness} / ${message.model}`,
+            meta: `${label(message.mode)} / ${agentMode ? harness.displayName : "Auto Stack"}`,
         });
 
-        if (message.mode === "agent") {
-            if (message.harness !== harness.id) {
-                await this.post({ type: "runError", text: "The selected coding harness is not admitted for Agent mode." });
-                this.activeRun = undefined;
-                return;
-            }
+        if (agentMode) {
             await this.streamAgent(message, replaceLast, run);
             return;
         }
@@ -150,8 +148,8 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
             for await (const event of this.chatRuntime.stream({
                 runId: `${Date.now()}`,
                 prompt: message.prompt.trim(),
-                mode: message.mode,
-                modelSelection: message.model,
+                mode: message.mode === "design" ? "design" : "ask",
+                modelSelection: "auto",
                 context: this.attachments,
             }, run.signal)) {
                 if (event.type === "text-delta") {
@@ -167,9 +165,9 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
             const turn = {
                 prompt: message.prompt.trim(),
                 response,
-                mode: message.mode,
-                harness: message.harness,
-                model: message.model,
+                mode: message.mode === "design" ? "design" as const : "ask" as const,
+                harness: "auto-stack",
+                model: "auto" as const,
                 route,
             };
             if (replaceLast) {
@@ -211,9 +209,10 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
                 runId,
                 prompt,
                 workspaceRoots: (vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri.fsPath),
-                modelSelection: message.model,
+                modelSelection: "auto" as const,
+                preferredRoutes: this.routeStack.load(),
             };
-            const events = message.qualityLoop
+            const events = message.mode === "loop"
                 ? runQualityLoop(this.agentHarness, {
                     request,
                     qualityBar: message.qualityBar?.trim() || "The requested behavior is complete, focused, and validated with relevant tests.",
@@ -262,8 +261,8 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
                 prompt: message.prompt.trim(),
                 response,
                 mode: "agent" as const,
-                harness: message.harness,
-                model: message.model,
+                harness: this.agentHarness.describe().id,
+                model: "auto" as const,
                 route,
             };
             if (replaceLast) {
@@ -310,7 +309,6 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
 
     private getHtml(webview: vscode.Webview): string {
         const nonce = createNonce();
-        const harness = this.agentHarness.describe();
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -325,16 +323,16 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         button, textarea, select { font: inherit; }
         .shell { min-height: 100vh; display: grid; grid-template-rows: auto 1fr auto; }
         .topbar { padding: 11px 12px; border-top: 2px solid var(--vscode-focusBorder); border-bottom: 1px solid var(--vscode-sideBar-border, var(--vscode-widget-border)); background: var(--vscode-sideBarSectionHeader-background, var(--vscode-sideBar-background)); }
-        .conversation-bar { height: 28px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
-        .conversation-bar select { min-width: 0; flex: 1; margin-right: 6px; }
+        .conversation-bar { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: end; gap: 6px; margin-bottom: 9px; }
+        .conversation-select { min-width: 0; }
+        .conversation-bar select { min-width: 0; }
         .conversation-actions { display: flex; gap: 3px; }
         .tool-button { width: 26px; height: 26px; padding: 0; border: 0; border-radius: 3px; color: var(--vscode-foreground); background: transparent; cursor: pointer; font-size: 16px; }
         .tool-button:hover { background: var(--vscode-toolbar-hoverBackground); }
-        .mode { display: grid; grid-template-columns: repeat(3, 1fr); height: 32px; padding: 2px; background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); border-radius: 4px; }
+        .mode { display: grid; grid-template-columns: repeat(4, 1fr); height: 32px; padding: 2px; background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); border-radius: 4px; }
         .mode button { border: 0; border-radius: 3px; color: var(--vscode-descriptionForeground); background: transparent; cursor: pointer; }
         .mode button[aria-pressed="true"] { color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
-        .selectors { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
-        .quality { display: none; grid-template-columns: auto 1fr 64px; gap: 7px; align-items: end; margin-top: 8px; }
+        .quality { display: none; grid-template-columns: minmax(0,1fr) 64px; gap: 7px; align-items: end; margin-top: 8px; }
         .quality.visible { display: grid; }
         .quality-toggle { display: flex; align-items: center; gap: 5px; min-height: 28px; color: var(--vscode-foreground); }
         .quality input[type="text"] { width: 100%; height: 28px; padding: 0 6px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); }
@@ -371,18 +369,14 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
 <body>
     <main class="shell">
         <section class="topbar" aria-label="Conversation controls">
-            <div class="conversation-bar"><select id="conversation" aria-label="Conversation"></select><div class="conversation-actions"><button id="regenerate" class="tool-button" title="Regenerate last response" aria-label="Regenerate last response">&#8635;</button><button id="newConversation" class="tool-button" title="New conversation" aria-label="New conversation">+</button></div></div>
+            <div class="conversation-bar"><label class="conversation-select">Conversation history<select id="conversation" aria-label="Conversation history" title="Switch conversation"></select></label><div class="conversation-actions"><button id="regenerate" class="tool-button" title="Regenerate last response" aria-label="Regenerate last response">&#8635;</button><button id="newConversation" class="tool-button" title="New conversation" aria-label="New conversation">+</button></div></div>
             <div class="mode" role="group" aria-label="Chat mode">
                 <button data-mode="ask" aria-pressed="true">Ask</button>
                 <button data-mode="agent" aria-pressed="false">Agent</button>
                 <button data-mode="design" aria-pressed="false">Design</button>
-            </div>
-            <div class="selectors">
-                <label>Harness<select id="harness"><option value="${harness.id}">${harness.displayName}</option></select></label>
-                <label>Provider<select id="model"><option value="auto">Auto / free-first</option><option value="ollama">Ollama / local</option><option value="openrouter">OpenRouter / free only</option><option value="groq">Groq / free tier</option></select></label>
+                <button data-mode="loop" aria-pressed="false" title="Builder and critic quality loop">Loop</button>
             </div>
             <div id="quality" class="quality">
-                <label class="quality-toggle"><input id="qualityLoop" type="checkbox">Quality Loop</label>
                 <label>Quality bar<input id="qualityBar" type="text" value="Complete, focused, and validated" aria-label="Quality bar"></label>
                 <label>Rounds<select id="maxRounds"><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>
             </div>
@@ -398,19 +392,16 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
             </div>
         </section>
     </main>
-    <script nonce="${nonce}">
+    <script nonce="${nonce}">(() => {
         const vscode = acquireVsCodeApi();
         const transcript = document.getElementById('transcript');
-        const prompt = document.getElementById('prompt');
-        const send = document.getElementById('send');
-        const status = document.getElementById('status');
-        const harness = document.getElementById('harness');
-        const model = document.getElementById('model');
+        const promptInput = document.getElementById('prompt');
+        const sendButton = document.getElementById('send');
+        const statusNode = document.getElementById('status');
         const contextKind = document.getElementById('contextKind');
         const attachments = document.getElementById('attachments');
         const conversation = document.getElementById('conversation');
         const quality = document.getElementById('quality');
-        const qualityLoop = document.getElementById('qualityLoop');
         const qualityBar = document.getElementById('qualityBar');
         const maxRounds = document.getElementById('maxRounds');
         let mode = 'ask';
@@ -420,8 +411,8 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => {
             mode = button.dataset.mode;
             document.querySelectorAll('[data-mode]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
-            prompt.placeholder = mode === 'agent' ? 'Describe a coding task...' : mode === 'design' ? 'Describe what you want to design...' : 'Ask about this workspace...';
-            quality.classList.toggle('visible', mode === 'agent');
+            promptInput.placeholder = mode === 'loop' ? 'Describe a task to build, critique, and refine...' : mode === 'agent' ? 'Describe a coding task...' : mode === 'design' ? 'Describe what you want to design...' : 'Ask about this workspace...';
+            quality.classList.toggle('visible', mode === 'loop');
         }));
 
         function submit() {
@@ -429,12 +420,12 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
                 vscode.postMessage({ type: 'stop' });
                 return;
             }
-            if (!prompt.value.trim()) return;
-            vscode.postMessage({ type: 'send', prompt: prompt.value, mode, harness: harness.value, model: model.value, qualityLoop: mode === 'agent' && qualityLoop.checked, qualityBar: qualityBar.value, maxRounds: Number(maxRounds.value) });
-            prompt.value = '';
+            if (!promptInput.value.trim()) return;
+            vscode.postMessage({ type: 'send', prompt: promptInput.value, mode, qualityBar: qualityBar.value, maxRounds: Number(maxRounds.value) });
+            promptInput.value = '';
         }
 
-        send.addEventListener('click', submit);
+        sendButton.addEventListener('click', submit);
         document.getElementById('attach').addEventListener('click', () => vscode.postMessage({ type: 'attach', kind: contextKind.value }));
         document.getElementById('regenerate').addEventListener('click', () => { if (!running) vscode.postMessage({ type: 'regenerate' }); });
         document.getElementById('newConversation').addEventListener('click', () => vscode.postMessage({ type: 'newConversation' }));
@@ -443,7 +434,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
             const id = event.target.dataset.remove;
             if (id) vscode.postMessage({ type: 'removeAttachment', id });
         });
-        prompt.addEventListener('keydown', event => {
+        promptInput.addEventListener('keydown', event => {
             if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
                 submit();
@@ -452,7 +443,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
 
         window.addEventListener('message', event => {
             const message = event.data;
-            if (message.type === 'status') status.textContent = message.text;
+            if (message.type === 'status') statusNode.textContent = message.text;
             if (message.type === 'conversations') {
                 conversation.textContent = '';
                 message.conversations.forEach(item => {
@@ -496,9 +487,9 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
             if (message.type === 'runStart') {
                 document.getElementById('empty')?.remove();
                 running = true;
-                send.textContent = '■';
-                send.title = 'Stop';
-                status.textContent = 'Generating';
+                sendButton.textContent = '■';
+                sendButton.title = 'Stop';
+                statusNode.textContent = 'Generating';
                 responseNode = appendTurn(message.prompt, message.meta, '', '');
                 transcript.scrollTop = transcript.scrollHeight;
             }
@@ -545,13 +536,14 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
 
         function finish(text) {
             running = false;
-            send.textContent = '↑';
-            send.title = 'Send';
-            status.textContent = text;
+            sendButton.textContent = '↑';
+            sendButton.title = 'Send';
+            statusNode.textContent = text;
             responseNode = undefined;
         }
 
         vscode.postMessage({ type: 'ready' });
+    })();
     </script>
 </body>
 </html>`;
@@ -559,7 +551,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
 }
 
 function label(mode: ChatMode): string {
-    return mode === "ask" ? "Ask" : mode === "agent" ? "Agent" : "Design";
+    return mode === "ask" ? "Ask" : mode === "agent" ? "Agent" : mode === "loop" ? "Loop" : "Design";
 }
 
 function modelLabel(model: ModelSelection): string {

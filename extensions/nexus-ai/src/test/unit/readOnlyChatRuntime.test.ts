@@ -20,7 +20,7 @@ const secretStore: SecretStore = {
     delete: async () => undefined,
 };
 
-test("Ask and Design use discovered local models before cloud free-tier models", async () => {
+test("Ask and Design use cloud free-tier models before local fallback", async () => {
     const requests: string[][] = [];
     const registry = new ProviderRegistry();
     registry.register(adapter("cloud", "free-tier", requests));
@@ -35,8 +35,8 @@ test("Ask and Design use discovered local models before cloud free-tier models",
     }, new AbortController().signal));
 
     const attempt = events.find((event) => event.type === "route-attempt");
-    assert.deepEqual(attempt, { type: "route-attempt", runId: "run-1", providerId: "ollama", modelId: "ollama-model", attempt: 1 });
-    assert.equal(events.some((event) => event.type === "text-delta" && event.text === "ollama reply"), true);
+    assert.deepEqual(attempt, { type: "route-attempt", runId: "run-1", providerId: "cloud", modelId: "cloud-model", attempt: 1 });
+    assert.equal(events.some((event) => event.type === "text-delta" && event.text === "cloud reply"), true);
     assert.match(requests[0][0], /Design mode/);
     assert.equal(requests[0][1], "Plan this change");
 });
@@ -112,7 +112,7 @@ test("a throttled free route falls back once and is skipped on the next request"
         update: async (_key: string, value: unknown) => { state = value; },
     });
     const throttled: ProviderAdapter = {
-        ...adapter("throttled", "local", []),
+        ...adapter("throttled", "free-tier", []),
         stream: async function* (): AsyncGenerator<ProviderStreamEvent> {
             throttledCalls += 1;
             throw new NexusError({ code: "rate-limited", message: "limited", retryable: true });
@@ -120,7 +120,7 @@ test("a throttled free route falls back once and is skipped on the next request"
     };
     const registry = new ProviderRegistry();
     registry.register(throttled);
-    registry.register(adapter("fallback", "free-tier", []));
+    registry.register(adapter("fallback", "local", []));
     const router = new CompletionRouter({
         maxAttemptsPerRoute: 1,
         onRouteFailure: (observation) => providerState.recordFailure(observation),

@@ -90,6 +90,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         new ConversationStore(context.workspaceState),
         new WorkspaceContextCollector(),
         agentHarness,
+        routeStack,
     );
     const routerProvider = new NexusRouterViewProvider(context.extensionUri, providers, secretStore, routeStack, providerState, {
         groq: { secretKey: GROQ_API_KEY, set: () => setProviderKey("Groq", GROQ_API_KEY) },

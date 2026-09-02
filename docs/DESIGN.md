@@ -101,13 +101,12 @@ Nexus-owned sidebars use a compact operational-dashboard treatment within native
 
 The composer includes:
 
-- Segmented mode control: Ask, Agent, Design.
-- Harness selector: only installed and healthy harnesses.
-- Provider/model selector: Auto is the default, with route details available.
+- Segmented mode control: Ask, Agent, Design, Loop.
+- Conversation history selector plus new-conversation and regenerate commands.
 - Context attachments: files, selections, symbols, diagnostics, terminal output, and Git changes.
 - Send/Stop command.
 
-Provider selection and harness selection are separate concepts. A harness defines how coding work is performed; a provider/model supplies inference when that harness supports external routing.
+The chat pane uses the configured Auto Stack rather than duplicating provider and model controls. OpenCode remains the admitted coding harness. Loop runs bounded builder and independent critic rounds against a user-visible quality bar.
 
 ### 5.3 Mode Contracts
 
@@ -116,6 +115,7 @@ Provider selection and harness selection are separate concepts. A harness define
 | Ask | With user context | No | No | Explanation or recommendation |
 | Design | With user context | No | No by default | Reviewable implementation plan |
 | Agent | Within trusted workspace | With approval policy | With approval policy | Applied and validated change |
+| Loop | Within trusted workspace | With approval policy | With approval policy | Bounded builder/critic refinement |
 
 Switching modes changes enforced capabilities, not merely the system prompt.
 
@@ -174,10 +174,10 @@ The router consumes normalized provider and model records. It distinguishes prov
 
 ### 7.1 Route Order
 
-1. User-pinned provider/model, subject to policy.
-2. Healthy local route when free-first Auto routing is enabled.
-3. Healthy cloud free-tier route suitable for the requested context and tools.
-4. Another no-cost configured route.
+1. User-configured Auto Stack order, subject to policy and availability.
+2. Healthy cloud free-tier route suitable for the requested context and tools.
+3. Another configured cloud free-tier route.
+4. Healthy local route such as Ollama.
 5. Paid route only after explicit opt-in.
 
 Routes are scored using health, recent throttling, context capacity, tool support, coding suitability, latency, and cost class. Retry only transient failures and honor `Retry-After`. Bound attempts and total elapsed time.

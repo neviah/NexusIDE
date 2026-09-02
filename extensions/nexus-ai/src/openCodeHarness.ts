@@ -198,7 +198,7 @@ export class OpenCodeHarness implements CodingHarness {
                         .withSession(async (session) => {
                             active.cancelSession = () => context.notify(acp.methods.agent.session.cancel, { sessionId: session.sessionId });
                             if (request.modelSelection) {
-                                const selectedModel = selectFreeModel(session.newSessionResponse.configOptions ?? [], request.modelSelection);
+                                const selectedModel = selectFreeModel(session.newSessionResponse.configOptions ?? [], request.modelSelection, request.preferredRoutes);
                                 await context.request(acp.methods.agent.session.setConfigOption, {
                                     sessionId: session.sessionId,
                                     configId: selectedModel.configId,
@@ -283,13 +283,20 @@ export class OpenCodeHarness implements CodingHarness {
 export function selectFreeModel(
     configOptions: readonly SessionConfigOption[],
     selection: "auto" | "ollama" | "openrouter" | "groq",
+    preferredRoutes: readonly string[] = [],
 ): { configId: string; value: string; name: string } {
     const modelConfig = configOptions.find((option) => option.type === "select" && (option.category === "model" || option.id === "model"));
     if (!modelConfig || modelConfig.type !== "select") {
         throw new Error("OpenCode did not advertise a model selector.");
     }
     const options = modelConfig.options.flatMap((option) => "group" in option ? option.options : [option]);
-    const prefixes = selection === "auto" ? ["ollama/", "openrouter-free", "groq/"] : selection === "openrouter" ? ["openrouter-free"] : [`${selection}/`];
+    if (selection === "auto") {
+        for (const route of preferredRoutes) {
+            const match = options.find((option) => option.value === route && isNoCostModel(option.value));
+            if (match) return { configId: modelConfig.id, value: match.value, name: match.name };
+        }
+    }
+    const prefixes = selection === "auto" ? ["groq/", "openrouter-free", "ollama/"] : selection === "openrouter" ? ["openrouter-free"] : [`${selection}/`];
     for (const prefix of prefixes) {
         const match = options.find((option) => prefix === "openrouter-free"
             ? option.value.startsWith("openrouter/") && option.value.endsWith(":free")
@@ -398,4 +405,8 @@ class AsyncEventQueue<T> implements AsyncIterable<T> {
             yield result.value;
         }
     }
+}
+
+function isNoCostModel(value: string): boolean {
+    return value.startsWith("ollama/") || value.startsWith("groq/") || (value.startsWith("openrouter/") && value.endsWith(":free"));
 }

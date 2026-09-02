@@ -85,7 +85,7 @@ export class ReadOnlyChatRuntime {
                         health: health.status,
                         quota: runtime?.quota,
                         cooldownUntil: runtime?.cooldownUntil,
-                        priority: stackIndex < 0 ? 0 : 1_000_000 - stackIndex * 10_000,
+                        priority: stackIndex < 0 ? model.costClass === "free-tier" ? 2_000 : 0 : 1_000_000 - stackIndex * 10_000,
                     }];
                 }));
             } catch (error) {

@@ -18,6 +18,7 @@ export interface AgentRequest {
     prompt: string;
     workspaceRoots: readonly string[];
     modelSelection?: "auto" | "ollama" | "openrouter" | "groq";
+    preferredRoutes?: readonly string[];
 }
 
 export interface AgentChangedFile {
