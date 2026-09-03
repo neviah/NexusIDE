@@ -10,7 +10,7 @@ import type {
     WriteTextFileRequest,
     WriteTextFileResponse,
 } from "@agentclientprotocol/sdk" with { "resolution-mode": "import" };
-import { isDeniedAgentOperation, requiresExplicitAgentApproval } from "./openCodeHarness";
+import { isDeniedAgentOperation, isReadOnlyUnityTool, requiresExplicitAgentApproval } from "./openCodeHarness";
 
 const PREVIEW_SCHEME = "nexus-agent-before";
 
@@ -19,6 +19,7 @@ export class WorkspaceAgentHost implements vscode.Disposable {
     private readonly previews = new Map<string, string>();
     private readonly previewProvider: vscode.Disposable;
     private approvalSessionEnabled = false;
+    private applyWritesSessionEnabled = false;
 
     public constructor() {
         this.previewProvider = vscode.workspace.registerTextDocumentContentProvider(PREVIEW_SCHEME, {
@@ -68,7 +69,7 @@ export class WorkspaceAgentHost implements vscode.Disposable {
         if (!allow) {
             return reject ? { outcome: { outcome: "selected", optionId: reject.optionId } } : { outcome: { outcome: "cancelled" } };
         }
-        if (this.approvalSessionEnabled && !requiresExplicitAgentApproval(operation) && !isMcpToolCall(params)) {
+        if (this.approvalSessionEnabled && !requiresExplicitAgentApproval(operation) && (!isMcpToolCall(params) || isReadOnlyUnityTool(params.toolCall.title))) {
             return { outcome: { outcome: "selected", optionId: allow.optionId } };
         }
 
@@ -123,14 +124,25 @@ export class WorkspaceAgentHost implements vscode.Disposable {
         }
 
         await this.previewDiff(filePath, previous, params.content);
+        if (this.applyWritesSessionEnabled) {
+            return await this.commitWrite(filePath, previous, params.content);
+        }
         const choice = await vscode.window.showWarningMessage(
             `Apply changes to ${vscode.workspace.asRelativePath(uri)}?`,
             { modal: true, detail: "Review the open diff before applying this write." },
             "Apply",
+            "Apply All Writes This Session",
         );
-        if (choice !== "Apply") {
+        if (choice !== "Apply" && choice !== "Apply All Writes This Session") {
             throw new Error(`Write denied: ${filePath}`);
         }
+        if (choice === "Apply All Writes This Session") {
+            this.applyWritesSessionEnabled = true;
+        }
+        return await this.commitWrite(filePath, previous, params.content);
+    }
+
+    private async commitWrite(filePath: string, previous: string, content: string): Promise<WriteTextFileResponse> {
         const finalPath = await requireCanonicalContainedPath(filePath, this.assertReady());
         const finalUri = vscode.Uri.file(finalPath);
         const finalDocument = vscode.workspace.textDocuments.find((document) => document.uri.fsPath === finalPath);
@@ -148,8 +160,8 @@ export class WorkspaceAgentHost implements vscode.Disposable {
         if (latest !== previous) {
             throw new Error(`Refusing to overwrite a file changed during diff review: ${finalPath}`);
         }
-        await vscode.workspace.fs.writeFile(finalUri, Buffer.from(params.content, "utf8"));
-        this.snapshots.set(filePath, digest(params.content));
+        await vscode.workspace.fs.writeFile(finalUri, Buffer.from(content, "utf8"));
+        this.snapshots.set(filePath, digest(content));
         return {};
     }
 

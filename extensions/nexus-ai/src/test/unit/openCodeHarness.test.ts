@@ -10,7 +10,7 @@ import type {
     WriteTextFileRequest,
 } from "@agentclientprotocol/sdk" with { "resolution-mode": "import" };
 import { AgentEvent, requireContainedPath } from "@nexus/ai-core";
-import { buildOpenCodeConfig, isDeniedAgentOperation, OpenCodeHarness, OpenCodeHost, OpenCodeProcessFactory, requiresExplicitAgentApproval, selectFreeModel } from "../../openCodeHarness";
+import { buildOpenCodeConfig, isDeniedAgentOperation, isReadOnlyUnityTool, OpenCodeHarness, OpenCodeHost, OpenCodeProcessFactory, requiresExplicitAgentApproval, selectFreeModel } from "../../openCodeHarness";
 
 test("OpenCode ACP adapter passes the reusable harness lifecycle", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "nexus-acp-"));
@@ -79,6 +79,16 @@ test("OpenCode receives a Windows-specific shell and verified-step contract", ()
 test("trusted MCP tools remain individually approved", () => {
     const config = JSON.parse(buildOpenCodeConfig([{ id: "unity", connection: { transport: "http", url: "https://tools.example.test/mcp" } }])) as { permission: Record<string, unknown> };
     assert.equal(config.permission["unity_*"], "ask");
+    assert.equal(config.permission["unity_scene-list-opened"], "allow");
+    assert.equal(config.permission["unity_gameobject-component-get"], "allow");
+});
+
+test("only known Unity inspection tools run without a separate approval", () => {
+    assert.equal(isReadOnlyUnityTool("unity_scene-list-opened"), true);
+    assert.equal(isReadOnlyUnityTool("Unity Scene Get Data"), true);
+    assert.equal(isReadOnlyUnityTool("unity_gameobject-create"), false);
+    assert.equal(isReadOnlyUnityTool("unity_script-update-or-create"), false);
+    assert.equal(isReadOnlyUnityTool("unity_editor-application-set-state"), false);
 });
 
 test("model selection never falls through to a paid default", () => {

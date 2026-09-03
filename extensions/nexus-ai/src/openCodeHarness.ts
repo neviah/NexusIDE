@@ -70,6 +70,21 @@ export function requiresExplicitAgentApproval(operation: string): boolean {
     return EXPLICIT_APPROVAL_OPERATION.test(operation);
 }
 
+const READ_ONLY_UNITY_TOOLS = new Set([
+    "scene-list-opened", "scene-get-data", "gameobject-find", "gameobject-component-get", "gameobject-component-list-all",
+    "assets-find", "assets-find-built-in", "assets-get-data", "assets-shader-list-all", "assets-shader-get-data",
+    "script-read", "package-list", "console-get-logs", "editor-application-get-state", "editor-selection-get",
+    "object-get-data", "reflection-method-find", "type-get-json-schema", "profiler-get-status", "profiler-get-memory-stats",
+    "profiler-get-rendering-stats", "profiler-get-script-stats", "profiler-list-modules", "screenshot-camera",
+    "screenshot-game-view", "screenshot-scene-view", "screenshot-isolated",
+]);
+
+/** Read-only Unity inspection tools are safe to run unattended after the MCP server itself is trusted. */
+export function isReadOnlyUnityTool(title: string | null | undefined): boolean {
+    const normalized = (title ?? "").toLowerCase().replace(/^unity[_\s-]*/, "").replace(/[\s_/]+/g, "-");
+    return READ_ONLY_UNITY_TOOLS.has(normalized);
+}
+
 export interface AgentMcpServer {
     id: string;
     connection:
@@ -104,7 +119,9 @@ export function buildOpenCodeConfig(servers: readonly AgentMcpServer[], platform
             },
     ]));
     const shell = platform === "win32" ? "pwsh" : undefined;
-    const mcpPermissions = Object.fromEntries(servers.map((server) => [`${server.id}_*`, "ask"]));
+    const mcpPermissions = Object.fromEntries(servers.flatMap((server) => server.id === "unity"
+        ? [...[...READ_ONLY_UNITY_TOOLS].map((tool) => [`unity_${tool}`, "allow"]), ["unity_*", "ask"]]
+        : [[`${server.id}_*`, "ask"]]));
     const prompt = platform === "win32"
         ? "You are working on Windows in PowerShell. Use PowerShell commands and syntax only: Get-ChildItem, Test-Path, Select-Object, and Out-Null; do not use Unix paths, /dev/null, head, ls flags, or shell redirection intended for bash. Treat every tool response as evidence: inspect it, stop and correct failures, and never claim a file, Unity asset, or folder was created unless the tool result confirms it. Prefer trusted Unity MCP tools for Unity Editor changes. Never modify Unity UserSettings, AI-Game-Developer-Config.json, connection mode, MCP endpoint, token, or server configuration. Work in small verified steps for large requests."
         : "Treat every tool response as evidence: inspect it, stop and correct failures, and never claim a file or asset was created unless the tool result confirms it. Never modify Unity UserSettings or MCP server configuration. Work in small verified steps for large requests.";
@@ -321,7 +338,7 @@ export class OpenCodeHarness implements CodingHarness {
                 const change: AgentChangedFile = { path: filePath, status: content.oldText == null ? "created" : "modified" };
                 changedFiles.set(filePath, change);
                 queue.push({ type: "file-change", change });
-            } else if (content.type === "content" && content.content.type === "text" && update.kind === "execute") {
+            } else if (content.type === "content" && content.content.type === "text" && (update.kind === "execute" || update.status === "failed")) {
                 queue.push({ type: "command-output", terminalId: update.toolCallId, output: redactText(content.content.text, secrets) });
             }
         }
