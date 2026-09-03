@@ -37,6 +37,18 @@ export class WorkspaceContextCollector {
                 content: diagnostics.length ? diagnostics.map((item) => `${item.range.start.line + 1}:${item.range.start.character + 1} ${severity(item.severity)} ${item.message}`).join("\n") : "No diagnostics.",
             };
         }
+        if (kind === "definition") {
+            const definitions = await vscode.commands.executeCommand<(vscode.Location | vscode.LocationLink)[]>("vscode.executeDefinitionProvider", editor.document.uri, editor.selection.active) ?? [];
+            return { label: `${relative} definition`, content: formatLocations(definitions) || "No definition found at the cursor." };
+        }
+        if (kind === "references") {
+            const references = await vscode.commands.executeCommand<vscode.Location[]>("vscode.executeReferenceProvider", editor.document.uri, editor.selection.active) ?? [];
+            return { label: `${relative} references`, content: formatLocations(references) || "No references found at the cursor." };
+        }
+        if (kind === "type") {
+            const hovers = await vscode.commands.executeCommand<vscode.Hover[]>("vscode.executeHoverProvider", editor.document.uri, editor.selection.active) ?? [];
+            return { label: `${relative} type information`, content: formatHovers(hovers) || "No type information found at the cursor." };
+        }
         const symbols = await vscode.commands.executeCommand<(vscode.DocumentSymbol | vscode.SymbolInformation)[]>("vscode.executeDocumentSymbolProvider", editor.document.uri) ?? [];
         return { label: `${relative} symbols`, content: formatSymbols(symbols) || "No document symbols." };
     }
@@ -81,4 +93,16 @@ function truncate(value: string): string {
 
 function severity(value: vscode.DiagnosticSeverity): string {
     return value === vscode.DiagnosticSeverity.Error ? "Error" : value === vscode.DiagnosticSeverity.Warning ? "Warning" : value === vscode.DiagnosticSeverity.Information ? "Info" : "Hint";
+}
+
+function formatLocations(locations: readonly (vscode.Location | vscode.LocationLink)[]): string {
+    return locations.map((location) => {
+        const uri = "uri" in location ? location.uri : location.targetUri;
+        const range = "range" in location ? location.range : location.targetSelectionRange ?? location.targetRange;
+        return range ? `${vscode.workspace.asRelativePath(uri)}:${range.start.line + 1}:${range.start.character + 1}` : vscode.workspace.asRelativePath(uri);
+    }).join("\n");
+}
+
+function formatHovers(hovers: readonly vscode.Hover[]): string {
+    return hovers.flatMap(({ contents }) => contents.map((content) => typeof content === "string" ? content : content.value)).join("\n\n");
 }

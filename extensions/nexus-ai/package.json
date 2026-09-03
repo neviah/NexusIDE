@@ -39,6 +39,13 @@
           "default": "",
           "description": "Optional path to the OpenCode executable. Leave empty to use opencode from PATH."
         },
+        "nexusAI.agentProfile": {
+          "type": "string",
+          "enum": ["coding", "unity", "review"],
+          "default": "coding",
+          "scope": "resource",
+          "description": "Agent behavior profile for this workspace: coding, Unity build/debug, or read-only review."
+        },
         "nexusAI.customOpenAI.baseUrl": {
           "type": "string",
           "default": "http://127.0.0.1:1234/v1",

@@ -69,7 +69,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             connection: definition.connection,
             token: await secretStore.get(MCP_SECRET_PREFIX + definition.id),
         })));
-    });
+    }, () => vscode.workspace.getConfiguration("nexusAI").get<"coding" | "unity" | "review">("agentProfile", "coding"));
     const setProviderKey = async (provider: string, secretKey: string): Promise<void> => {
         const apiKey = await vscode.window.showInputBox({
             title: `Set ${provider} API Key`,

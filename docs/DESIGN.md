@@ -126,6 +126,8 @@ Switching modes changes enforced capabilities, not merely the system prompt.
 
 Agent and Loop may use tools from Model Context Protocol servers. A server is inert until explicitly trusted, trust is bound to a fingerprint of everything the server can execute or reach, and workspace-supplied definitions are always labelled as such. MCP tools never widen the file, path, or command policy that Agent mode already enforces. See [MCP.md](MCP.md).
 
+Agent profiles are workspace-scoped: `coding` is the general default, `unity` requires small Unity MCP changes followed by Console/test evidence, and `review` denies edits. Regardless of profile, repository files, web content, MCP responses, and tool output are untrusted data rather than instructions that can override the task or system policy.
+
 ## 6. Coding Harness Contract
 
 ### 6.1 Launch Set
@@ -167,6 +169,8 @@ Agent events normalize text deltas, tool requests, approvals, file edits, comman
 OpenCode uses the official ACP SDK over newline-delimited JSON on supervised stdio. NexusIDE injects a restrictive runtime permission overlay, host-shell instructions, and a verified-step contract; it owns permission prompts and client file methods, and selects an advertised local or free-tier model through `session/set_config_option` before sending a prompt. Agent prompts load a bounded project `AGENTS.md` when present, and workspace attachments have a fixed aggregate budget with explicit omission notices.
 
 Before an Agent run, NexusIDE opens an in-memory checkpoint for writes mediated through its workspace host. The Revert Last Agent Run control restores those before-images only after explicit confirmation and only while each file still matches the last agent-written content; a later user edit fails rollback rather than being overwritten. Unity MCP scene and asset changes remain outside this file-write checkpoint and retain their own tool approvals.
+
+The context menu can attach language-service definition locations, references, and hover type information alongside files, symbols, and diagnostics. Agent activity is rendered as a structured timeline of pending, completed, failed, output, and changed steps so failed Unity operations expose their returned details.
 
 ### 6.3 File Safety
 

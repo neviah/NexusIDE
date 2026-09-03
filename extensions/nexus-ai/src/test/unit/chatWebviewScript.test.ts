@@ -45,6 +45,8 @@ test("chat webview script attaches controls and announces readiness", () => {
     assert.match(viewSource, /grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
     assert.match(viewSource, /@media \(max-width: 330px\)/);
     assert.match(viewSource, /Agent mode requires a trusted workspace/);
+    assert.match(source, /activity-entry/);
+    assert.match(source, /activityMarker/);
 
     modes[3].handlers.get("click")?.({ preventDefault: () => undefined });
     const promptInput = elements.get("prompt")!;

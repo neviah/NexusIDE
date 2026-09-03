@@ -138,7 +138,15 @@
                 container.append(toggle, activity);
                 responseNode.parentElement.insertBefore(container, responseNode.parentElement.querySelector(".route"));
             }
-            activity.textContent += `${activity.textContent ? "\n" : ""}${message.text}`;
+            const entry = document.createElement("div");
+            entry.className = `activity-entry ${message.status || "progress"}`;
+            const marker = document.createElement("span");
+            marker.className = "activity-marker";
+            marker.textContent = activityMarker(message.status);
+            const text = document.createElement("span");
+            text.textContent = message.text;
+            entry.append(marker, text);
+            activity.appendChild(entry);
             activity.scrollTop = activity.scrollHeight;
             scrollToLatest();
         }
@@ -199,6 +207,10 @@
 
     function scrollToLatest() {
         requestAnimationFrame(() => { transcript.scrollTop = transcript.scrollHeight; });
+    }
+
+    function activityMarker(status) {
+        return status === "completed" ? "+" : status === "failed" ? "!" : status === "pending" ? "?" : status === "changed" ? "~" : status === "output" ? "|" : "·";
     }
 
     vscode.postMessage({ type: "ready" });

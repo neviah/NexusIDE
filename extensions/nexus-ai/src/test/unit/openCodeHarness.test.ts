@@ -76,6 +76,17 @@ test("OpenCode receives a Windows-specific shell and verified-step contract", ()
     assert.match(posix.agent?.build?.prompt ?? "", /tool response/);
 });
 
+test("workspace profiles specialize the agent without weakening the untrusted-content boundary", () => {
+    const unity = JSON.parse(buildOpenCodeConfig([], "win32", "unity")) as { agent: { build: { prompt: string } } };
+    assert.match(unity.agent.build.prompt, /Unity workflow agent/);
+    assert.match(unity.agent.build.prompt, /Unity Console errors/);
+    assert.match(unity.agent.build.prompt, /untrusted data/);
+
+    const review = JSON.parse(buildOpenCodeConfig([], "win32", "review")) as { agent: { build: { prompt: string; permission: { edit: string } } } };
+    assert.match(review.agent.build.prompt, /review agent/);
+    assert.equal(review.agent.build.permission.edit, "deny");
+});
+
 test("trusted MCP tools remain individually approved", () => {
     const config = JSON.parse(buildOpenCodeConfig([{ id: "unity", connection: { transport: "http", url: "https://tools.example.test/mcp" } }])) as { permission: Record<string, unknown> };
     assert.deepEqual(Object.entries(config.permission).filter(([name]) => name.startsWith("unity_"))[0], ["unity_*", "ask"]);

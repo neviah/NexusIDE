@@ -270,15 +270,15 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
                     await this.post({ type: "delta", text: event.text });
                 } else if (event.type === "progress") {
                     await this.post({ type: "status", text: event.message || "OpenCode is working" });
-                    await this.post({ type: "agentActivity", text: event.message || "OpenCode is working" });
+                    await this.post({ type: "agentActivity", text: event.message || "OpenCode is working", status: "progress" });
                 } else if (event.type === "permission") {
-                    await this.post({ type: "agentActivity", text: `Approval requested: ${event.title}` });
+                    await this.post({ type: "agentActivity", text: event.title, status: "pending" });
                 } else if (event.type === "tool") {
-                    await this.post({ type: "agentActivity", text: `${event.status}: ${event.title}` });
+                    await this.post({ type: "agentActivity", text: event.title, status: event.status });
                 } else if (event.type === "command-output" && event.output.trim()) {
-                    await this.post({ type: "agentActivity", text: event.output.trim().slice(-2_000) });
+                    await this.post({ type: "agentActivity", text: event.output.trim().slice(-2_000), status: "output" });
                 } else if (event.type === "file-change") {
-                    await this.post({ type: "agentActivity", text: `${event.change.status}: ${vscode.workspace.asRelativePath(event.change.path)}` });
+                    await this.post({ type: "agentActivity", text: `${event.change.status}: ${vscode.workspace.asRelativePath(event.change.path)}`, status: "changed" });
                 } else if (event.type === "complete") {
                     summary = event.summary;
                     route = summaryLabel(event.summary.changedFiles.length, event.summary.validations.length, "completed");
@@ -407,6 +407,12 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         .activity-toggle:hover { color: var(--vscode-foreground); background: var(--vscode-toolbar-hoverBackground); }
         .activity-toggle .chevron { width: 10px; font-size: 9px; }
         .activity { padding: 7px; max-height: 150px; overflow: auto; border-top: 1px solid var(--vscode-widget-border); color: var(--vscode-descriptionForeground); font-family: var(--vscode-editor-font-family); font-size: 11px; white-space: pre-wrap; }
+        .activity-entry { display: grid; grid-template-columns: 12px minmax(0,1fr); gap: 5px; padding: 2px 0; }
+        .activity-entry.failed { color: var(--vscode-errorForeground); }
+        .activity-entry.pending { color: var(--vscode-editorWarning-foreground); }
+        .activity-entry.changed { color: var(--vscode-charts-green, var(--vscode-foreground)); }
+        .activity-entry.output { padding-left: 17px; border-left: 1px solid var(--vscode-widget-border); }
+        .activity-marker { color: var(--vscode-descriptionForeground); }
         .activity-wrap.collapsed .activity { display: none; }
         .route { margin-top: 9px; color: var(--vscode-descriptionForeground); font-size: 11px; }
         .composer { padding: 12px; border-top: 1px solid var(--vscode-sideBar-border, var(--vscode-widget-border)); background: var(--vscode-sideBarSectionHeader-background, var(--vscode-sideBar-background)); }
@@ -452,7 +458,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
             <div class="input-wrap">
                 <textarea id="prompt" aria-label="Message Nexus AI" placeholder="Ask about this workspace..." spellcheck="true"></textarea>
                 <div id="attachments" class="attachments"></div>
-                <div class="actions"><div class="context-tools"><select id="contextKind" aria-label="Context source"><option value="selection">Selection</option><option value="file">Active file</option><option value="symbols">Symbols</option><option value="diagnostics">Diagnostics</option><option value="terminal">Terminal selection</option><option value="git-diff">Git diff</option></select><button id="attach" class="attach" title="Attach context" aria-label="Attach context">+</button></div><span id="status" class="status">Starting...</span><button id="send" class="send" title="Send" aria-label="Send">&#8593;</button></div>
+                <div class="actions"><div class="context-tools"><select id="contextKind" aria-label="Context source"><option value="selection">Selection</option><option value="file">Active file</option><option value="symbols">Symbols</option><option value="definition">Definition</option><option value="references">References</option><option value="type">Type info</option><option value="diagnostics">Diagnostics</option><option value="terminal">Terminal selection</option><option value="git-diff">Git diff</option></select><button id="attach" class="attach" title="Attach context" aria-label="Attach context">+</button></div><span id="status" class="status">Starting...</span><button id="send" class="send" title="Send" aria-label="Send">&#8593;</button></div>
             </div>
         </section>
     </main>

@@ -1,4 +1,4 @@
-export type ContextKind = "file" | "selection" | "symbols" | "diagnostics" | "terminal" | "git-diff";
+export type ContextKind = "file" | "selection" | "symbols" | "diagnostics" | "definition" | "references" | "type" | "terminal" | "git-diff";
 
 export interface ContextAttachment {
     id: string;
