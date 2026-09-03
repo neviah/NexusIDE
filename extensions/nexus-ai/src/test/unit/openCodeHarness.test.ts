@@ -78,7 +78,7 @@ test("OpenCode receives a Windows-specific shell and verified-step contract", ()
 
 test("trusted MCP tools remain individually approved", () => {
     const config = JSON.parse(buildOpenCodeConfig([{ id: "unity", connection: { transport: "http", url: "https://tools.example.test/mcp" } }])) as { permission: Record<string, unknown> };
-    assert.equal(config.permission["unity_*"], "ask");
+    assert.deepEqual(Object.entries(config.permission).filter(([name]) => name.startsWith("unity_"))[0], ["unity_*", "ask"]);
     assert.equal(config.permission["unity_scene-list-opened"], "allow");
     assert.equal(config.permission["unity_gameobject-component-get"], "allow");
 });

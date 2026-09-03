@@ -120,7 +120,7 @@ export function buildOpenCodeConfig(servers: readonly AgentMcpServer[], platform
     ]));
     const shell = platform === "win32" ? "pwsh" : undefined;
     const mcpPermissions = Object.fromEntries(servers.flatMap((server) => server.id === "unity"
-        ? [...[...READ_ONLY_UNITY_TOOLS].map((tool) => [`unity_${tool}`, "allow"]), ["unity_*", "ask"]]
+        ? [["unity_*", "ask"], ...[...READ_ONLY_UNITY_TOOLS].map((tool) => [`unity_${tool}`, "allow"])]
         : [[`${server.id}_*`, "ask"]]));
     const prompt = platform === "win32"
         ? "You are working on Windows in PowerShell. Use PowerShell commands and syntax only: Get-ChildItem, Test-Path, Select-Object, and Out-Null; do not use Unix paths, /dev/null, head, ls flags, or shell redirection intended for bash. Treat every tool response as evidence: inspect it, stop and correct failures, and never claim a file, Unity asset, or folder was created unless the tool result confirms it. Prefer trusted Unity MCP tools for Unity Editor changes. Never modify Unity UserSettings, AI-Game-Developer-Config.json, connection mode, MCP endpoint, token, or server configuration. Work in small verified steps for large requests."
