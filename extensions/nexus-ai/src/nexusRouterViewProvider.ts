@@ -77,7 +77,7 @@ export class NexusRouterViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
-    private async refresh(): Promise<void> {
+    public async refresh(): Promise<void> {
         await this.post({ type: "loading" });
         const providers = [];
         this.availableRoutes.clear();
@@ -85,12 +85,12 @@ export class NexusRouterViewProvider implements vscode.WebviewViewProvider {
             const manifest = adapter.manifest();
             const settings = this.providerState.provider(manifest.id);
             if (!settings.enabled) {
-                providers.push({ id: manifest.id, name: manifest.displayName, enabled: false, status: "Disabled", quotaNote: settings.quotaNote, models: [], configurable: Boolean(this.credentials[manifest.id]) });
+                providers.push({ id: manifest.id, name: manifest.displayName, enabled: false, status: "Disabled", quotaNote: settings.quotaNote, smoke: settings.smoke, models: [], configurable: Boolean(this.credentials[manifest.id]) });
                 continue;
             }
             const authentication = await adapter.authenticate(this.secretStore);
             if (!authentication.authenticated) {
-                providers.push({ id: manifest.id, name: manifest.displayName, enabled: true, status: "Not configured", quotaNote: settings.quotaNote, models: [], configurable: Boolean(this.credentials[manifest.id]) });
+                providers.push({ id: manifest.id, name: manifest.displayName, enabled: true, status: "Not configured", quotaNote: settings.quotaNote, smoke: settings.smoke, models: [], configurable: Boolean(this.credentials[manifest.id]) });
                 continue;
             }
             try {
@@ -103,9 +103,9 @@ export class NexusRouterViewProvider implements vscode.WebviewViewProvider {
                     const runtime = this.providerState.route(manifest.id, model.id);
                     return { route, id: model.id, name: model.displayName ?? model.id, cost: model.costClass, context: model.contextTokens, quota: runtime.quota, cooldownUntil: runtime.cooldownUntil };
                 });
-                providers.push({ id: manifest.id, name: manifest.displayName, enabled: true, status: entries.length ? "Ready" : "No eligible models", health, quotaNote: settings.quotaNote, models: entries, configurable: Boolean(this.credentials[manifest.id]) });
+                providers.push({ id: manifest.id, name: manifest.displayName, enabled: true, status: entries.length ? "Ready" : "No eligible models", health, quotaNote: settings.quotaNote, smoke: settings.smoke, models: entries, configurable: Boolean(this.credentials[manifest.id]) });
             } catch (error) {
-                providers.push({ id: manifest.id, name: manifest.displayName, enabled: true, status: normalizeError(error, manifest.id).message, health: this.providerState.provider(manifest.id).health, quotaNote: settings.quotaNote, models: [], configurable: Boolean(this.credentials[manifest.id]) });
+                providers.push({ id: manifest.id, name: manifest.displayName, enabled: true, status: normalizeError(error, manifest.id).message, health: this.providerState.provider(manifest.id).health, quotaNote: settings.quotaNote, smoke: settings.smoke, models: [], configurable: Boolean(this.credentials[manifest.id]) });
             }
         }
         const stack = this.routeStack.load();

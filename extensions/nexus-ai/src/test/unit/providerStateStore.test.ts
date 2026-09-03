@@ -36,6 +36,14 @@ test("health and quota observations remain available to routing and UI", async (
     assert.equal(store.route("groq", "model").quota?.remaining, 90);
 });
 
+test("provider smoke outcomes persist as bounded dashboard freshness", async () => {
+    const { storage } = memoryStorage();
+    const store = new ProviderStateStore(storage);
+    await store.recordSmoke("groq", "passed", "healthy");
+    assert.equal(store.provider("groq").smoke?.outcome, "passed");
+    assert.equal(store.provider("groq").smoke?.message, "healthy");
+});
+
 test("exhausted quota expires after its advertised reset", async () => {
     const { storage } = memoryStorage();
     const store = new ProviderStateStore(storage);

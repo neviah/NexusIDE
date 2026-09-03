@@ -48,6 +48,9 @@ Phase 9 engineering complete. Public beta publication is gated only on provision
 - Quality Loop critics receive compact failed validation output, improving repair guidance without replaying all terminal logs.
 - Agent profiles provide workspace-scoped coding, Unity verification, and read-only review behavior without weakening the harness policy.
 - Definition, reference, and hover-type attachments use VS Code language services; Agent activity renders a structured lifecycle for tool and validation outcomes.
+- The three newest NexusIDE-mediated Agent checkpoints persist in workspace state; profile-aware free-model scoring favors coding-capable models for coding and Unity work after any explicit Auto Stack order.
+- A user-confirmed Unity bootstrap command creates only missing conventional folders and starter instructions; Unity profile recovery inspects Console and editor state before a single read-only retry.
+- A user-invoked free-provider dashboard smoke check records recent provider health without issuing inference requests.
 - Agent model selection occurs through ACP before prompting and permits Ollama, Groq free-tier, or explicit OpenRouter `:free` choices; paid defaults fail closed.
 - OpenCode ACP v1 initialization, session creation, and explicit free-model selection pass model-free runtime smoke tests on Windows.
 - Free-first routing persists rate-limit cooldowns and provider quota observations, excludes exhausted or cooling routes, and falls back without retrying a throttled route on the next request.

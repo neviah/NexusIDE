@@ -28,3 +28,19 @@ test("content digests are stable and sensitive to post-run edits", () => {
     assert.equal(contentDigest("agent result"), contentDigest("agent result"));
     assert.notEqual(contentDigest("agent result"), contentDigest("user edit"));
 });
+
+test("completed checkpoints survive reload and the journal keeps only its newest entries", () => {
+    const state: Record<string, unknown> = {};
+    const storage = { get: <T>(key: string, fallback: T) => state[key] as T ?? fallback, update: async (key: string, value: unknown) => { state[key] = value; } };
+    const store = new WorkspaceCheckpointStore(storage, 1);
+    const first = store.begin();
+    store.capture("C:/first.cs", "before", "after");
+    store.finish(first);
+    const second = store.begin();
+    store.capture("C:/second.cs", "before", "after");
+    store.finish(second);
+
+    const restored = new WorkspaceCheckpointStore(storage, 1);
+    assert.equal(restored.get(first), undefined);
+    assert.equal(restored.get(second)?.files[0].path, "C:/second.cs");
+});

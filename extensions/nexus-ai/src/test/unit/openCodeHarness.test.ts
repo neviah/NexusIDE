@@ -10,7 +10,7 @@ import type {
     WriteTextFileRequest,
 } from "@agentclientprotocol/sdk" with { "resolution-mode": "import" };
 import { AgentEvent, requireContainedPath } from "@nexus/ai-core";
-import { buildOpenCodeConfig, isDeniedAgentOperation, isReadOnlyUnityTool, OpenCodeHarness, OpenCodeHost, OpenCodeProcessFactory, requiresExplicitAgentApproval, selectFreeModel } from "../../openCodeHarness";
+import { buildOpenCodeConfig, isDeniedAgentOperation, isReadOnlyUnityTool, modelProfileScore, OpenCodeHarness, OpenCodeHost, OpenCodeProcessFactory, requiresExplicitAgentApproval, selectFreeModel } from "../../openCodeHarness";
 
 test("OpenCode ACP adapter passes the reusable harness lifecycle", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "nexus-acp-"));
@@ -80,6 +80,8 @@ test("workspace profiles specialize the agent without weakening the untrusted-co
     const unity = JSON.parse(buildOpenCodeConfig([], "win32", "unity")) as { agent: { build: { prompt: string } } };
     assert.match(unity.agent.build.prompt, /Unity workflow agent/);
     assert.match(unity.agent.build.prompt, /Unity Console errors/);
+    assert.match(unity.agent.build.prompt, /retry that same read-only tool once/);
+    assert.match(unity.agent.build.prompt, /Do not retry mutations automatically/);
     assert.match(unity.agent.build.prompt, /untrusted data/);
 
     const review = JSON.parse(buildOpenCodeConfig([], "win32", "review")) as { agent: { build: { prompt: string; permission: { edit: string } } } };
@@ -121,6 +123,11 @@ test("model selection never falls through to a paid default", () => {
     assert.equal(selectFreeModel([{ ...config[0], options: [...config[0].options, { name: "Cerebras", value: "cerebras/qwen" }] }], "auto", ["cerebras/qwen"]).value, "cerebras/qwen");
     assert.equal(selectFreeModel(config, "openrouter").value, "openrouter/example:free");
     assert.throws(() => selectFreeModel([{ ...config[0], options: config[0].options.slice(0, 1) }], "auto"), /no configured local or explicitly free model/);
+});
+
+test("Unity and coding profiles prefer capable free coding models when no user stack is set", () => {
+    assert.ok(modelProfileScore("openrouter/gpt-oss-120b:free", "unity") > modelProfileScore("openrouter/llama-8b:free", "unity"));
+    assert.ok(modelProfileScore("groq/qwen3-coder", "coding") > modelProfileScore("groq/plain-model", "coding"));
 });
 
 test("cancellation stops the ACP process and emits a coherent audit summary", async () => {

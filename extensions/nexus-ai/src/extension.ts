@@ -19,6 +19,7 @@ import { McpTrustStore } from "./mcpTrustStore";
 import { McpServerManager } from "./mcpServerManager";
 import { McpViewProvider } from "./mcpViewProvider";
 import { findUnityProjects, MCP_SECRET_PREFIX, parseCommandLine, readServerDefinitions, UNITY_DEFAULT_URL, UNITY_SERVER_ID } from "./mcpServers";
+import { bootstrapUnityProject } from "./unityBootstrap";
 
 const VIEW_ID = "nexusAI.chat";
 const CONTAINER_ID = "workbench.view.extension.nexus-ai";
@@ -46,7 +47,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         onQuota: (observation) => providerState.recordQuota(observation),
     });
     const languageToolingOutput = vscode.window.createOutputChannel("NexusIDE Language Tooling");
-    const agentHost = new WorkspaceAgentHost();
+    const agentHost = new WorkspaceAgentHost(context.workspaceState);
     const openCodePath = vscode.workspace.getConfiguration("nexusAI").get("openCodePath", "").trim();
     const mcpTrust = new McpTrustStore(context.globalState);
     const mcpManager = new McpServerManager(mcpTrust, secretStore, readServerDefinitions);
@@ -199,6 +200,39 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         vscode.window.registerWebviewViewProvider(STACK_VIEW_ID, stackProvider),
         vscode.window.registerWebviewViewProvider(COOKBOOK_VIEW_ID, cookbookProvider),
         vscode.window.registerWebviewViewProvider(MCP_VIEW_ID, mcpProvider),
+        vscode.commands.registerCommand("nexusAI.bootstrapUnityProject", async () => {
+            const root = vscode.workspace.workspaceFolders?.[0];
+            if (!root) return;
+            const choice = await vscode.window.showWarningMessage("Create missing Unity starter folders and AGENTS.md in this workspace?", { modal: true }, "Bootstrap Unity Project");
+            if (choice !== "Bootstrap Unity Project") return;
+            const created = await bootstrapUnityProject(root.uri);
+            await vscode.window.showInformationMessage(created.length ? `Created: ${created.join(", ")}` : "Unity project conventions are already present.");
+        }),
+        vscode.commands.registerCommand("nexusAI.runProviderSmokeCheck", async () => {
+            const report = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Checking configured free providers" }, async () => {
+                const results: string[] = [];
+                for (const adapter of providers.list()) {
+                    const manifest = adapter.manifest();
+                    const auth = await adapter.authenticate(secretStore);
+                    if (!auth.authenticated) {
+                        await providerState.recordSmoke(manifest.id, "skipped", "No credentials configured");
+                        continue;
+                    }
+                    try {
+                        const health = await adapter.health(AbortSignal.timeout(10_000));
+                        const outcome = health.status === "unavailable" ? "failed" : "passed";
+                        await providerState.recordSmoke(manifest.id, outcome, health.message ?? health.status);
+                        results.push(`${manifest.displayName}: ${outcome}`);
+                    } catch {
+                        await providerState.recordSmoke(manifest.id, "failed", "Health check failed");
+                        results.push(`${manifest.displayName}: failed`);
+                    }
+                }
+                return results;
+            });
+            await vscode.window.showInformationMessage(report.length ? report.join("; ") : "No configured providers to check.");
+            await routerProvider.refresh();
+        }),
         vscode.commands.registerCommand("nexusAI.addMcpServer", addMcpServer),
         vscode.commands.registerCommand("nexusAI.connectUnityMcp", async () => {
             const configuration = vscode.workspace.getConfiguration("nexusAI.mcp");

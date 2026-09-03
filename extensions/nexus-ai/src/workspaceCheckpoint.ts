@@ -12,10 +12,25 @@ export interface WorkspaceCheckpoint {
     files: readonly CheckpointFile[];
 }
 
-/** Keeps an in-memory, run-scoped before-image for writes mediated by NexusIDE. */
+export interface CheckpointStorage {
+    get<T>(key: string, fallback: T): T;
+    update(key: string, value: unknown): PromiseLike<void>;
+}
+
+const STORAGE_KEY = "nexusAI.agent.checkpoints.v1";
+
+/** Keeps a bounded workspace-scoped journal for writes mediated by NexusIDE. */
 export class WorkspaceCheckpointStore {
     private readonly checkpoints = new Map<string, { createdAt: string; files: Map<string, CheckpointFile> }>();
     private activeId?: string;
+
+    public constructor(private readonly storage?: CheckpointStorage, private readonly maximumCheckpoints = 3) {
+        const persisted = this.storage?.get<unknown>(STORAGE_KEY, []);
+        for (const checkpoint of Array.isArray(persisted) ? persisted : []) {
+            if (!isCheckpoint(checkpoint)) continue;
+            this.checkpoints.set(checkpoint.id, { createdAt: checkpoint.createdAt, files: new Map(checkpoint.files.map((file) => [file.path, file])) });
+        }
+    }
 
     public begin(): string {
         const id = randomUUID();
@@ -34,7 +49,13 @@ export class WorkspaceCheckpointStore {
     public finish(id: string): WorkspaceCheckpoint | undefined {
         if (this.activeId === id) this.activeId = undefined;
         const checkpoint = this.checkpoints.get(id);
-        return checkpoint ? { id, createdAt: checkpoint.createdAt, files: [...checkpoint.files.values()] } : undefined;
+        if (checkpoint) {
+            this.checkpoints.delete(id);
+            this.checkpoints.set(id, checkpoint);
+        }
+        const result = checkpoint ? { id, createdAt: checkpoint.createdAt, files: [...checkpoint.files.values()] } : undefined;
+        this.persist();
+        return result;
     }
 
     public get(id: string): WorkspaceCheckpoint | undefined {
@@ -45,7 +66,29 @@ export class WorkspaceCheckpointStore {
     public discard(id: string): void {
         this.checkpoints.delete(id);
         if (this.activeId === id) this.activeId = undefined;
+        this.persist();
     }
+
+    private persist(): void {
+        const entries = [...this.checkpoints.entries()]
+            .reverse()
+            .slice(0, this.maximumCheckpoints);
+        const retained = new Set(entries.map(([id]) => id));
+        for (const id of this.checkpoints.keys()) {
+            if (!retained.has(id) && id !== this.activeId) this.checkpoints.delete(id);
+        }
+        void this.storage?.update(STORAGE_KEY, entries.map(([id, checkpoint]) => ({
+            id,
+            createdAt: checkpoint.createdAt,
+            files: [...checkpoint.files.values()],
+        })));
+    }
+}
+
+function isCheckpoint(value: unknown): value is WorkspaceCheckpoint {
+    return Boolean(value) && typeof value === "object" && typeof (value as WorkspaceCheckpoint).id === "string"
+        && typeof (value as WorkspaceCheckpoint).createdAt === "string" && Array.isArray((value as WorkspaceCheckpoint).files)
+        && (value as WorkspaceCheckpoint).files.every((file) => file && typeof file.path === "string" && typeof file.after === "string" && (file.before === undefined || typeof file.before === "string"));
 }
 
 export function contentDigest(value: string): string {

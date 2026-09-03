@@ -132,6 +132,16 @@
         "command": "nexusAI.connectUnityMcp",
         "title": "Connect Unity MCP Server",
         "category": "NexusIDE"
+      },
+      {
+        "command": "nexusAI.bootstrapUnityProject",
+        "title": "Bootstrap Unity Project Conventions",
+        "category": "NexusIDE"
+      },
+      {
+        "command": "nexusAI.runProviderSmokeCheck",
+        "title": "Run Free Provider Smoke Check",
+        "category": "NexusIDE"
       }
     ],
     "viewsContainers": {

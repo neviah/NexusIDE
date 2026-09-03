@@ -147,6 +147,8 @@ Outcomes are deliberately distinct:
 
 Only the streamed completion is conclusive. Several providers serve model discovery from a public endpoint, so credential and health checks can succeed with an invalid key and fail only at generation time. Set `NEXUS_SMOKE_MCP_URL` to additionally verify that an MCP server, such as Unity, initializes and reports tools.
 
+`NexusIDE: Run Free Provider Smoke Check` is a fast, user-invoked dashboard freshness check. It records the last health outcome in provider state and does not stream generation, so it is safe to use before an Agent run but does not replace the full live smoke script.
+
 ## Observability
 
 Store bounded, redacted operational data:

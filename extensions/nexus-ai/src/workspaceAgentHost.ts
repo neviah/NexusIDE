@@ -11,7 +11,7 @@ import type {
     WriteTextFileResponse,
 } from "@agentclientprotocol/sdk" with { "resolution-mode": "import" };
 import { isDeniedAgentOperation, isReadOnlyUnityTool, requiresExplicitAgentApproval } from "./openCodeHarness";
-import { contentDigest, WorkspaceCheckpointStore } from "./workspaceCheckpoint";
+import { CheckpointStorage, contentDigest, WorkspaceCheckpointStore } from "./workspaceCheckpoint";
 
 const PREVIEW_SCHEME = "nexus-agent-before";
 
@@ -19,11 +19,12 @@ export class WorkspaceAgentHost implements vscode.Disposable {
     private readonly snapshots = new Map<string, string>();
     private readonly previews = new Map<string, string>();
     private readonly previewProvider: vscode.Disposable;
-    private readonly checkpoints = new WorkspaceCheckpointStore();
+    private readonly checkpoints: WorkspaceCheckpointStore;
     private approvalSessionEnabled = false;
     private applyWritesSessionEnabled = false;
 
-    public constructor() {
+    public constructor(storage?: CheckpointStorage) {
+        this.checkpoints = new WorkspaceCheckpointStore(storage);
         this.previewProvider = vscode.workspace.registerTextDocumentContentProvider(PREVIEW_SCHEME, {
             provideTextDocumentContent: (uri) => this.previews.get(uri.path) ?? "",
         });

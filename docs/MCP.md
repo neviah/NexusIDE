@@ -78,3 +78,5 @@ Trusted servers are passed to the OpenCode harness through its supervised proces
 Unity MCP configuration is protected from Agent mode. The agent cannot modify `UserSettings`, `AI-Game-Developer-Config.json`, Unity MCP connection mode, endpoint, token, or server settings. Read-only Unity inspection tools, such as scene hierarchy, components, assets, console logs, and screenshots, run unattended after the server itself is trusted. Scene, asset, script, package, test, and play-state mutations require explicit approval.
 
 Select the `unity` Agent Profile in `nexusAI.agentProfile` for Unity tasks. It directs the harness to inspect the open scene, make a small verified change, inspect Console errors, and run relevant Unity tests. Returned MCP data remains untrusted content and is never treated as a policy instruction.
+
+`NexusIDE: Bootstrap Unity Project Conventions` creates only missing `Assets/Scripts`, `Assets/Scenes`, `Assets/Prefabs`, `Assets/Tests`, and a starter `AGENTS.md`. It never overwrites existing project files or Unity settings.

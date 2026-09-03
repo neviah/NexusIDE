@@ -11,6 +11,7 @@ export interface ProviderSettings {
     enabled: boolean;
     quotaNote?: string;
     health?: ProviderHealth;
+    smoke?: { checkedAt: string; outcome: "passed" | "failed" | "skipped"; message: string };
 }
 
 export interface RouteRuntimeState {
@@ -22,6 +23,7 @@ interface StoredProviderState {
     enabled?: boolean;
     quotaNote?: string;
     health?: ProviderHealth;
+    smoke?: ProviderSettings["smoke"];
 }
 
 interface ProviderStateDocument {
@@ -34,7 +36,7 @@ export class ProviderStateStore {
 
     public provider(providerId: string): ProviderSettings {
         const state = this.read().providers[providerId];
-        return { enabled: state?.enabled !== false, quotaNote: state?.quotaNote, health: state?.health };
+        return { enabled: state?.enabled !== false, quotaNote: state?.quotaNote, health: state?.health, ...(state?.smoke ? { smoke: state.smoke } : {}) };
     }
 
     public has(providerId: string): boolean {
@@ -63,6 +65,12 @@ export class ProviderStateStore {
     public async recordHealth(providerId: string, health: ProviderHealth): Promise<void> {
         const document = this.read();
         document.providers[providerId] = { ...document.providers[providerId], health };
+        await this.storage.update(STORAGE_KEY, document);
+    }
+
+    public async recordSmoke(providerId: string, outcome: "passed" | "failed" | "skipped", message: string): Promise<void> {
+        const document = this.read();
+        document.providers[providerId] = { ...document.providers[providerId], smoke: { checkedAt: new Date().toISOString(), outcome, message: message.slice(0, 240) } };
         await this.storage.update(STORAGE_KEY, document);
     }
 

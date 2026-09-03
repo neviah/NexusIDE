@@ -170,6 +170,8 @@ OpenCode uses the official ACP SDK over newline-delimited JSON on supervised std
 
 Before an Agent run, NexusIDE opens an in-memory checkpoint for writes mediated through its workspace host. The Revert Last Agent Run control restores those before-images only after explicit confirmation and only while each file still matches the last agent-written content; a later user edit fails rollback rather than being overwritten. Unity MCP scene and asset changes remain outside this file-write checkpoint and retain their own tool approvals.
 
+The three newest completed checkpoints are persisted in workspace state and survive a reload. Agent profile routing keeps an explicit Auto Stack first, then favors larger coding-capable no-cost models for coding and Unity tasks. The Unity profile retries one failed read-only operation only after reading editor state and Console logs; it never changes connection or project settings as recovery.
+
 The context menu can attach language-service definition locations, references, and hover type information alongside files, symbols, and diagnostics. Agent activity is rendered as a structured timeline of pending, completed, failed, output, and changed steps so failed Unity operations expose their returned details.
 
 ### 6.3 File Safety
