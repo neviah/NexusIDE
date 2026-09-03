@@ -162,9 +162,11 @@ interface HarnessManifest {
 }
 ```
 
-Agent events normalize text deltas, tool requests, approvals, file edits, command starts, command output, diagnostics, route metadata, completion, cancellation, and failure. Capabilities are discovered rather than inferred from a harness name.
+Agent events normalize text deltas, tool requests, approvals, file edits, command starts, command output, diagnostics, route metadata, completion, cancellation, and failure. Loop critics receive bounded output from failed validations as evidence, rather than relying solely on a builder narrative. Capabilities are discovered rather than inferred from a harness name.
 
-OpenCode uses the official ACP SDK over newline-delimited JSON on supervised stdio. NexusIDE injects a restrictive runtime permission overlay, host-shell instructions, and a verified-step contract; it owns permission prompts and client file methods, and selects an advertised local or free-tier model through `session/set_config_option` before sending a prompt.
+OpenCode uses the official ACP SDK over newline-delimited JSON on supervised stdio. NexusIDE injects a restrictive runtime permission overlay, host-shell instructions, and a verified-step contract; it owns permission prompts and client file methods, and selects an advertised local or free-tier model through `session/set_config_option` before sending a prompt. Agent prompts load a bounded project `AGENTS.md` when present, and workspace attachments have a fixed aggregate budget with explicit omission notices.
+
+Before an Agent run, NexusIDE opens an in-memory checkpoint for writes mediated through its workspace host. The Revert Last Agent Run control restores those before-images only after explicit confirmation and only while each file still matches the last agent-written content; a later user edit fails rollback rather than being overwritten. Unity MCP scene and asset changes remain outside this file-write checkpoint and retain their own tool approvals.
 
 ### 6.3 File Safety
 

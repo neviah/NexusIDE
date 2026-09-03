@@ -147,6 +147,9 @@ export interface OpenCodeHost {
     readTextFile(params: ReadTextFileRequest): Promise<ReadTextFileResponse>;
     writeTextFile(params: WriteTextFileRequest): Promise<WriteTextFileResponse>;
     previewDiff?(path: string, oldText: string, newText: string): Promise<void>;
+    beginCheckpoint?(): string;
+    finishCheckpoint?(id: string): number;
+    rollbackCheckpoint?(id: string): Promise<number>;
 }
 
 export type OpenCodeProcessFactory = (cwd: string, env: NodeJS.ProcessEnv) => ChildProcessWithoutNullStreams;
@@ -238,6 +241,18 @@ export class OpenCodeHarness implements CodingHarness {
         if (!active.process.killed) {
             active.process.kill();
         }
+    }
+
+    public beginCheckpoint(): string | undefined {
+        return this.host.beginCheckpoint?.();
+    }
+
+    public finishCheckpoint(id: string | undefined): number {
+        return id ? this.host.finishCheckpoint?.(id) ?? 0 : 0;
+    }
+
+    public async rollbackCheckpoint(id: string | undefined): Promise<number> {
+        return id ? await this.host.rollbackCheckpoint?.(id) ?? 0 : 0;
     }
 
     private async runAcp(

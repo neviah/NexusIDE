@@ -6,6 +6,7 @@ import { WorkspaceContextCollector } from "./workspaceContext";
 import { ContextAttachment, ContextKind, formatContext } from "./workspaceContextTypes";
 import { runQualityLoop } from "./qualityLoop";
 import { RouteStackStore } from "./routeStackStore";
+import { formatWorkspaceInstructions, loadWorkspaceInstructions } from "./workspaceInstructions";
 
 type ChatMode = "ask" | "agent" | "design" | "loop";
 
@@ -17,7 +18,13 @@ type WebviewMessage =
     | { type: "regenerate" }
     | { type: "newConversation" }
     | { type: "selectConversation"; id: string }
-    | { type: "stop" };
+    | { type: "stop" | "rollback" };
+
+interface CheckpointHarness extends CodingHarness {
+    beginCheckpoint?(): string | undefined;
+    finishCheckpoint?(id: string | undefined): number;
+    rollbackCheckpoint?(id: string | undefined): Promise<number>;
+}
 
 export class NexusChatViewProvider implements vscode.WebviewViewProvider {
     private view?: vscode.WebviewView;
@@ -25,6 +32,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
     private activeRunId?: string;
     private attachments: ContextAttachment[] = [];
     private viewReady = false;
+    private lastCheckpointId?: string;
 
     public constructor(
         private readonly extensionUri: vscode.Uri,
@@ -69,6 +77,14 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
             if (this.activeRunId) {
                 await this.agentHarness.cancel(this.activeRunId);
             }
+            return;
+        }
+
+        if (message.type === "rollback") {
+            const restored = await (this.agentHarness as CheckpointHarness).rollbackCheckpoint?.(this.lastCheckpointId) ?? 0;
+            if (restored) this.lastCheckpointId = undefined;
+            await this.post({ type: "checkpoint", available: Boolean(this.lastCheckpointId), count: restored });
+            await this.post({ type: "status", text: restored ? `Reverted ${restored} file(s) from the last Agent run.` : "No restorable Agent checkpoint." });
             return;
         }
 
@@ -129,6 +145,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
 
     private async initializeView(): Promise<void> {
         await this.postConversation();
+        await this.post({ type: "checkpoint", available: Boolean(this.lastCheckpointId), count: 0 });
         await this.post({ type: "status", text: `Ready / ${this.chatRuntime.providerNames().join(" + ")}`, tone: "ready" });
     }
 
@@ -223,7 +240,14 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         let summary: AgentRunSummary | undefined;
         let failure: string | undefined;
         const context = formatContext(this.attachments);
-        const prompt = context ? `${message.prompt.trim()}\n\nAttached context:\n${context}` : message.prompt.trim();
+        const instructions = formatWorkspaceInstructions(await loadWorkspaceInstructions((vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri.fsPath)));
+        const prompt = [
+            message.prompt.trim(),
+            instructions ? `Workspace instructions:\n${instructions}` : "",
+            context ? `Attached context:\n${context}` : "",
+        ].filter(Boolean).join("\n\n");
+        const checkpoints = this.agentHarness as CheckpointHarness;
+        const checkpointId = checkpoints.beginCheckpoint?.();
         try {
             const request = {
                 runId,
@@ -308,6 +332,9 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
                 ? { type: "runStopped" }
                 : { type: "runError", text: agentErrorMessage(error), route });
         } finally {
+            const checkpointFiles = checkpoints.finishCheckpoint?.(checkpointId) ?? 0;
+            if (checkpointFiles && checkpointId) this.lastCheckpointId = checkpointId;
+            await this.post({ type: "checkpoint", available: Boolean(this.lastCheckpointId), count: checkpointFiles });
             if (this.activeRun === run) {
                 this.activeRun = undefined;
                 this.activeRunId = undefined;
@@ -406,7 +433,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
 <body>
     <main class="shell">
         <section class="topbar" aria-label="Conversation controls">
-            <div class="conversation-bar"><label class="conversation-select">Conversation history<select id="conversation" aria-label="Conversation history" title="Switch conversation"></select></label><div class="conversation-actions"><button id="regenerate" class="tool-button" title="Regenerate last response" aria-label="Regenerate last response">&#8635;</button><button id="newConversation" class="tool-button" title="New conversation" aria-label="New conversation">+</button></div></div>
+            <div class="conversation-bar"><label class="conversation-select">Conversation history<select id="conversation" aria-label="Conversation history" title="Switch conversation"></select></label><div class="conversation-actions"><button id="rollback" class="tool-button" title="Revert the last Agent-run file writes" aria-label="Revert last Agent run" disabled>&#8630;</button><button id="regenerate" class="tool-button" title="Regenerate last response" aria-label="Regenerate last response">&#8635;</button><button id="newConversation" class="tool-button" title="New conversation">+</button></div></div>
             <div class="mode" role="group" aria-label="Chat mode">
                 <button data-mode="ask" aria-pressed="true">Ask</button>
                 <button data-mode="agent" aria-pressed="false">Agent</button>

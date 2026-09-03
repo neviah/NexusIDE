@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import * as vscode from "vscode";
 import { requireCanonicalContainedPath, requireContainedPath } from "@nexus/ai-core";
 import type {
@@ -11,6 +11,7 @@ import type {
     WriteTextFileResponse,
 } from "@agentclientprotocol/sdk" with { "resolution-mode": "import" };
 import { isDeniedAgentOperation, isReadOnlyUnityTool, requiresExplicitAgentApproval } from "./openCodeHarness";
+import { contentDigest, WorkspaceCheckpointStore } from "./workspaceCheckpoint";
 
 const PREVIEW_SCHEME = "nexus-agent-before";
 
@@ -18,6 +19,7 @@ export class WorkspaceAgentHost implements vscode.Disposable {
     private readonly snapshots = new Map<string, string>();
     private readonly previews = new Map<string, string>();
     private readonly previewProvider: vscode.Disposable;
+    private readonly checkpoints = new WorkspaceCheckpointStore();
     private approvalSessionEnabled = false;
     private applyWritesSessionEnabled = false;
 
@@ -35,6 +37,45 @@ export class WorkspaceAgentHost implements vscode.Disposable {
 
     public roots(): string[] {
         return (vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri.fsPath);
+    }
+
+    public beginCheckpoint(): string {
+        return this.checkpoints.begin();
+    }
+
+    public finishCheckpoint(id: string): number {
+        return this.checkpoints.finish(id)?.files.length ?? 0;
+    }
+
+    public async rollbackCheckpoint(id: string): Promise<number> {
+        const checkpoint = this.checkpoints.get(id);
+        if (!checkpoint || checkpoint.files.length === 0) return 0;
+        for (const file of checkpoint.files) {
+            const uri = vscode.Uri.file(await requireCanonicalContainedPath(file.path, this.assertReady()));
+            if (vscode.workspace.textDocuments.some((document) => document.uri.fsPath === uri.fsPath && document.isDirty)) {
+                throw new Error(`Cannot roll back an unsaved editor: ${file.path}`);
+            }
+            const current = await readOptional(uri);
+            if (current !== undefined && contentDigest(current) !== contentDigest(file.after)) {
+                throw new Error(`Cannot roll back ${file.path}; it changed after the Agent run.`);
+            }
+            if (current === undefined && file.before !== undefined) {
+                throw new Error(`Cannot roll back ${file.path}; it was deleted after the Agent run.`);
+            }
+        }
+        const choice = await vscode.window.showWarningMessage(
+            `Revert ${checkpoint.files.length} file(s) from this Agent run?`,
+            { modal: true, detail: "Only files unchanged since the Agent wrote them will be restored." },
+            "Revert Run",
+        );
+        if (choice !== "Revert Run") return 0;
+        for (const file of checkpoint.files) {
+            const uri = vscode.Uri.file(file.path);
+            if (file.before === undefined) await vscode.workspace.fs.delete(uri, { useTrash: true });
+            else await vscode.workspace.fs.writeFile(uri, Buffer.from(file.before, "utf8"));
+        }
+        this.checkpoints.discard(id);
+        return checkpoint.files.length;
     }
 
     public assertReady(): string[] {
@@ -93,7 +134,7 @@ export class WorkspaceAgentHost implements vscode.Disposable {
     public async readTextFile(params: ReadTextFileRequest): Promise<ReadTextFileResponse> {
         const filePath = await requireCanonicalContainedPath(params.path, this.assertReady());
         const content = Buffer.from(await vscode.workspace.fs.readFile(vscode.Uri.file(filePath))).toString("utf8");
-        this.snapshots.set(filePath, digest(content));
+        this.snapshots.set(filePath, contentDigest(content));
         if (!params.line && !params.limit) {
             return { content };
         }
@@ -110,20 +151,13 @@ export class WorkspaceAgentHost implements vscode.Disposable {
             throw new Error(`Refusing to overwrite an unsaved editor: ${filePath}`);
         }
 
-        let previous = "";
-        try {
-            previous = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString("utf8");
-        } catch (error) {
-            if (!(error instanceof vscode.FileSystemError && error.code === "FileNotFound")) {
-                throw error;
-            }
-        }
+        const previous = await readOptional(uri);
         const snapshot = this.snapshots.get(filePath);
-        if (snapshot && snapshot !== digest(previous)) {
+        if (snapshot && snapshot !== contentDigest(previous ?? "")) {
             throw new Error(`Refusing to overwrite a file changed since the agent read it: ${filePath}`);
         }
 
-        await this.previewDiff(filePath, previous, params.content);
+        await this.previewDiff(filePath, previous ?? "", params.content);
         if (this.applyWritesSessionEnabled) {
             return await this.commitWrite(filePath, previous, params.content);
         }
@@ -142,26 +176,20 @@ export class WorkspaceAgentHost implements vscode.Disposable {
         return await this.commitWrite(filePath, previous, params.content);
     }
 
-    private async commitWrite(filePath: string, previous: string, content: string): Promise<WriteTextFileResponse> {
+    private async commitWrite(filePath: string, previous: string | undefined, content: string): Promise<WriteTextFileResponse> {
         const finalPath = await requireCanonicalContainedPath(filePath, this.assertReady());
         const finalUri = vscode.Uri.file(finalPath);
         const finalDocument = vscode.workspace.textDocuments.find((document) => document.uri.fsPath === finalPath);
         if (finalDocument?.isDirty) {
             throw new Error(`Refusing to overwrite an editor that changed during review: ${finalPath}`);
         }
-        let latest = "";
-        try {
-            latest = Buffer.from(await vscode.workspace.fs.readFile(finalUri)).toString("utf8");
-        } catch (error) {
-            if (!(error instanceof vscode.FileSystemError && error.code === "FileNotFound")) {
-                throw error;
-            }
-        }
+        const latest = await readOptional(finalUri);
         if (latest !== previous) {
             throw new Error(`Refusing to overwrite a file changed during diff review: ${finalPath}`);
         }
         await vscode.workspace.fs.writeFile(finalUri, Buffer.from(content, "utf8"));
-        this.snapshots.set(filePath, digest(content));
+        this.checkpoints.capture(filePath, previous, content);
+        this.snapshots.set(filePath, contentDigest(content));
         return {};
     }
 
@@ -208,8 +236,13 @@ export class WorkspaceAgentHost implements vscode.Disposable {
     }
 }
 
-function digest(content: string): string {
-    return createHash("sha256").update(content).digest("hex");
+async function readOptional(uri: vscode.Uri): Promise<string | undefined> {
+    try {
+        return Buffer.from(await vscode.workspace.fs.readFile(uri)).toString("utf8");
+    } catch (error) {
+        if (error instanceof vscode.FileSystemError && error.code === "FileNotFound") return undefined;
+        throw error;
+    }
 }
 
 function isMcpToolCall(params: RequestPermissionRequest): boolean {

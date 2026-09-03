@@ -39,7 +39,7 @@ export async function* runQualityLoop(harness: CodingHarness, options: QualityLo
         yield { type: "progress", message: `Quality Loop: independent critique ${round} of ${maxRounds}` };
         const criticId = `${options.request.runId}-critic-${round}`;
         options.onRunStart?.(criticId);
-        const criticPrompt = `Act only as a read-only critic. Do not edit files or run destructive commands. Inspect the current workspace and compare it with the requested task and quality bar.\n\nTask:\n${options.request.prompt}\n\nQuality bar:\n${options.qualityBar}\n\nBuilder report:\n${builderText || "No narrative report."}\n\nReturn exactly one verdict line: VERDICT: PASS or VERDICT: FAIL. After it, give concise evidence and required fixes.`;
+        const criticPrompt = `Act only as a read-only critic. Do not edit files or run destructive commands. Inspect the current workspace and compare it with the requested task and quality bar.\n\nTask:\n${options.request.prompt}\n\nQuality bar:\n${options.qualityBar}\n\nBuilder report:\n${builderText || "No narrative report."}\n\nValidation evidence:\n${formatValidationFeedback(builderTerminal.summary) || "No commands or tests reported."}\n\nReturn exactly one verdict line: VERDICT: PASS or VERDICT: FAIL. After it, give concise evidence and required fixes.`;
         let critique = "";
         let criticTerminal: Extract<AgentEvent, { type: "complete" | "cancelled" | "failure" }> | undefined;
         for await (const event of harness.start({ ...options.request, runId: criticId, prompt: criticPrompt }, signal)) {
@@ -73,4 +73,10 @@ function mergeSummary(summary: AgentRunSummary, files: Map<string, AgentChangedF
 
 function combinedSummary(files: Map<string, AgentChangedFile>, validations: Map<string, AgentRunSummary["validations"][number]>, message: string): AgentRunSummary {
     return { status: "completed", changedFiles: [...files.values()], validations: [...validations.values()], message };
+}
+
+export function formatValidationFeedback(summary: AgentRunSummary, maximumChars = 4_000): string {
+    const failed = summary.validations.filter((validation) => validation.exitCode !== 0);
+    const lines = failed.map((validation) => `Command: ${validation.command}\nExit code: ${validation.exitCode ?? "unknown"}\nOutput:\n${validation.output.slice(-1_200)}`);
+    return lines.join("\n\n").slice(-maximumChars);
 }

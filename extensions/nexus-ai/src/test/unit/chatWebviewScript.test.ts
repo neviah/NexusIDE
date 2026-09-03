@@ -14,13 +14,14 @@ test("chat webview script attaches controls and announces readiness", () => {
         public value = "";
         public textContent = "";
         public placeholder = "";
+        public disabled = false;
         public dataset: Record<string, string> = {};
         public readonly handlers = new Map<string, Handler>();
         public readonly classList = { toggle: () => undefined };
         public addEventListener(type: string, handler: Handler): void { this.handlers.set(type, handler); }
         public setAttribute(): void {}
     }
-    const elements = new Map(["transcript", "prompt", "send", "status", "contextKind", "attachments", "conversation", "quality", "qualityBar", "maxRounds", "attach", "regenerate", "newConversation"].map((id) => [id, new FakeElement()]));
+    const elements = new Map(["transcript", "prompt", "send", "status", "contextKind", "attachments", "conversation", "quality", "qualityBar", "maxRounds", "attach", "rollback", "regenerate", "newConversation"].map((id) => [id, new FakeElement()]));
     const modes = ["ask", "agent", "design", "loop"].map((mode) => {
         const button = new FakeElement();
         button.dataset.mode = mode;

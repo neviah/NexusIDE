@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { AgentEvent, AgentRequest, CodingHarness } from "@nexus/ai-core";
-import { runQualityLoop } from "../../qualityLoop";
+import { formatValidationFeedback, runQualityLoop } from "../../qualityLoop";
 
 test("quality loop uses a fresh critic and stops on an explicit pass", async () => {
     const harness = new FakeHarness(["builder report", "VERDICT: PASS\nRequirements are met."]);
@@ -18,6 +18,17 @@ test("quality loop feeds critique back to the builder and respects its round bud
     assert.equal(harness.requests.length, 4);
     assert.match(harness.requests[2].prompt, /Add tests/);
     assert.match(events.find((event) => event.type === "complete")?.type === "complete" ? events.find((event) => event.type === "complete")!.summary.message ?? "" : "", /budget exhausted/i);
+});
+
+test("quality loop provides only failed validation evidence to its critic", async () => {
+    const summary = { status: "completed" as const, changedFiles: [], validations: [
+        { command: "npm test", exitCode: 1, output: "expected true, received false" },
+        { command: "npm run lint", exitCode: 0, output: "clean" },
+    ] };
+    const feedback = formatValidationFeedback(summary);
+    assert.match(feedback, /npm test/);
+    assert.doesNotMatch(feedback, /npm run lint/);
+    assert.match(feedback, /received false/);
 });
 
 class FakeHarness implements CodingHarness {

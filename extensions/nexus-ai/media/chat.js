@@ -10,6 +10,7 @@
     const quality = document.getElementById("quality");
     const qualityBar = document.getElementById("qualityBar");
     const maxRounds = document.getElementById("maxRounds");
+    const rollback = document.getElementById("rollback");
     let mode = "ask";
     let running = false;
     let responseNode;
@@ -38,6 +39,7 @@
     document.getElementById("attach").addEventListener("click", () => vscode.postMessage({ type: "attach", kind: contextKind.value }));
     document.getElementById("regenerate").addEventListener("click", () => { if (!running) vscode.postMessage({ type: "regenerate" }); });
     document.getElementById("newConversation").addEventListener("click", () => vscode.postMessage({ type: "newConversation" }));
+    rollback.addEventListener("click", () => { if (!running && !rollback.disabled) vscode.postMessage({ type: "rollback" }); });
     conversation.addEventListener("change", () => vscode.postMessage({ type: "selectConversation", id: conversation.value }));
     attachments.addEventListener("click", (event) => {
         const id = event.target.dataset.remove;
@@ -86,6 +88,10 @@
                 chip.append(text, remove);
                 attachments.appendChild(chip);
             });
+        }
+        if (message.type === "checkpoint") {
+            rollback.disabled = !message.available;
+            rollback.title = message.available ? `Revert ${message.count || "last"} Agent-run file write(s)` : "No restorable Agent-run file writes";
         }
         if (message.type === "removeLast") {
             const messages = transcript.querySelectorAll(".message");

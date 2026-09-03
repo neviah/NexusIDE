@@ -33,7 +33,7 @@ These rules keep NexusIDE maintainable, safe, and honest as it evolves.
 3. Resolve all file operations against granted workspace roots and fail closed.
 4. Never silently replace dirty editor buffers or newer disk content.
 5. Show diffs before applying risky or broad changes.
-6. Destructive commands, credential changes, commits, pushes, dependency publishing, and operations outside the workspace require explicit approval. A user may approve ordinary Agent tool calls for the current NexusIDE session, but this does not bypass commit, push, destructive-operation, or file-write review safeguards.
+6. Destructive commands, credential changes, commits, pushes, dependency publishing, and operations outside the workspace require explicit approval. A user may approve ordinary Agent tool calls or mediated file writes for the current NexusIDE session, but this does not bypass commit, push, destructive-operation, protected-path, dirty-buffer, or rollback-conflict safeguards.
 7. Cancellation prevents new tool activity and terminates supervised child processes where supported.
 8. Audit records describe actions and outcomes without storing secrets or full source content by default.
 
