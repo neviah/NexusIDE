@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { AgentRunSummary, CodingHarness, normalizeError, qualifyHarness } from "@nexus/ai-core";
 import { ModelSelection, ReadOnlyChatRuntime } from "./readOnlyChatRuntime";
-import { ConversationStore } from "./conversationStore";
+import { ConversationStore, formatConversationContext } from "./conversationStore";
 import { WorkspaceContextCollector } from "./workspaceContext";
 import { ContextAttachment, ContextKind, formatContext } from "./workspaceContextTypes";
 import { runQualityLoop } from "./qualityLoop";
@@ -18,12 +18,13 @@ type WebviewMessage =
     | { type: "regenerate" }
     | { type: "newConversation" }
     | { type: "selectConversation"; id: string }
-    | { type: "stop" | "rollback" };
+    | { type: "stop" | "rollback"; id?: string };
 
 interface CheckpointHarness extends CodingHarness {
     beginCheckpoint?(): string | undefined;
     finishCheckpoint?(id: string | undefined): number;
     rollbackCheckpoint?(id: string | undefined): Promise<number>;
+    listCheckpoints?(): readonly { id: string; createdAt: string; files: readonly unknown[] }[];
 }
 
 export class NexusChatViewProvider implements vscode.WebviewViewProvider {
@@ -81,9 +82,9 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         }
 
         if (message.type === "rollback") {
-            const restored = await (this.agentHarness as CheckpointHarness).rollbackCheckpoint?.(this.lastCheckpointId) ?? 0;
+            const restored = await (this.agentHarness as CheckpointHarness).rollbackCheckpoint?.(message.id ?? this.lastCheckpointId) ?? 0;
             if (restored) this.lastCheckpointId = undefined;
-            await this.post({ type: "checkpoint", available: Boolean(this.lastCheckpointId), count: restored });
+            await this.postCheckpoints(restored);
             await this.post({ type: "status", text: restored ? `Reverted ${restored} file(s) from the last Agent run.` : "No restorable Agent checkpoint." });
             return;
         }
@@ -145,7 +146,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
 
     private async initializeView(): Promise<void> {
         await this.postConversation();
-        await this.post({ type: "checkpoint", available: Boolean(this.lastCheckpointId), count: 0 });
+        await this.postCheckpoints();
         await this.post({ type: "status", text: `Ready / ${this.chatRuntime.providerNames().join(" + ")}`, tone: "ready" });
     }
 
@@ -241,8 +242,10 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         let failure: string | undefined;
         const context = formatContext(this.attachments);
         const instructions = formatWorkspaceInstructions(await loadWorkspaceInstructions((vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri.fsPath)));
+        const history = formatConversationContext(this.conversations.load());
         const prompt = [
             message.prompt.trim(),
+            history ? `Recent conversation context (reference this only when relevant):\n${history}` : "",
             instructions ? `Workspace instructions:\n${instructions}` : "",
             context ? `Attached context:\n${context}` : "",
         ].filter(Boolean).join("\n\n");
@@ -334,12 +337,18 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         } finally {
             const checkpointFiles = checkpoints.finishCheckpoint?.(checkpointId) ?? 0;
             if (checkpointFiles && checkpointId) this.lastCheckpointId = checkpointId;
-            await this.post({ type: "checkpoint", available: Boolean(this.lastCheckpointId), count: checkpointFiles });
+            await this.postCheckpoints(checkpointFiles);
             if (this.activeRun === run) {
                 this.activeRun = undefined;
                 this.activeRunId = undefined;
             }
         }
+    }
+
+    private async postCheckpoints(count = 0): Promise<void> {
+        const checkpoints = (this.agentHarness as CheckpointHarness).listCheckpoints?.() ?? [];
+        this.lastCheckpointId = checkpoints[0]?.id;
+        await this.post({ type: "checkpoint", available: checkpoints.length > 0, count, checkpoints: checkpoints.map((checkpoint) => ({ id: checkpoint.id, createdAt: checkpoint.createdAt, files: checkpoint.files.length })) });
     }
 
     private post(message: unknown): Thenable<boolean> {
@@ -439,7 +448,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
 <body>
     <main class="shell">
         <section class="topbar" aria-label="Conversation controls">
-            <div class="conversation-bar"><label class="conversation-select">Conversation history<select id="conversation" aria-label="Conversation history" title="Switch conversation"></select></label><div class="conversation-actions"><button id="rollback" class="tool-button" title="Revert the last Agent-run file writes" aria-label="Revert last Agent run" disabled>&#8630;</button><button id="regenerate" class="tool-button" title="Regenerate last response" aria-label="Regenerate last response">&#8635;</button><button id="newConversation" class="tool-button" title="New conversation">+</button></div></div>
+            <div class="conversation-bar"><label class="conversation-select">Conversation history<select id="conversation" aria-label="Conversation history" title="Switch conversation"></select></label><div class="conversation-actions"><select id="checkpoint" aria-label="Agent checkpoint" title="Select Agent checkpoint" disabled></select><button id="rollback" class="tool-button" title="Revert the selected Agent-run file writes" aria-label="Revert selected Agent run" disabled>&#8630;</button><button id="regenerate" class="tool-button" title="Regenerate last response" aria-label="Regenerate last response">&#8635;</button><button id="newConversation" class="tool-button" title="New conversation">+</button></div></div>
             <div class="mode" role="group" aria-label="Chat mode">
                 <button data-mode="ask" aria-pressed="true">Ask</button>
                 <button data-mode="agent" aria-pressed="false">Agent</button>

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ConversationStorage, ConversationStore, ConversationTurn } from "../../conversationStore";
+import { ConversationStorage, ConversationStore, ConversationTurn, formatConversationContext } from "../../conversationStore";
 
 test("conversation history is bounded and restored in order", async () => {
     let state: unknown = [];
@@ -31,6 +31,13 @@ test("timestamps are optional for old turns and preserved for new turns", () => 
         update: async () => undefined,
     };
     assert.deepEqual(new ConversationStore(storage).load(), [oldTurn, newTurn]);
+});
+
+test("recent conversation context is bounded and retains chronological turns", () => {
+    const context = formatConversationContext([turn("first decision"), turn("second decision")], 100);
+    assert.match(context, /first decision/);
+    assert.match(context, /second decision/);
+    assert.ok(context.indexOf("first decision") < context.indexOf("second decision"));
 });
 
 test("replace and clear support conversation controls", async () => {

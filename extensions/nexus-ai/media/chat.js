@@ -11,6 +11,7 @@
     const qualityBar = document.getElementById("qualityBar");
     const maxRounds = document.getElementById("maxRounds");
     const rollback = document.getElementById("rollback");
+    const checkpoint = document.getElementById("checkpoint");
     let mode = "ask";
     let running = false;
     let responseNode;
@@ -39,7 +40,7 @@
     document.getElementById("attach").addEventListener("click", () => vscode.postMessage({ type: "attach", kind: contextKind.value }));
     document.getElementById("regenerate").addEventListener("click", () => { if (!running) vscode.postMessage({ type: "regenerate" }); });
     document.getElementById("newConversation").addEventListener("click", () => vscode.postMessage({ type: "newConversation" }));
-    rollback.addEventListener("click", () => { if (!running && !rollback.disabled) vscode.postMessage({ type: "rollback" }); });
+    rollback.addEventListener("click", () => { if (!running && !rollback.disabled) vscode.postMessage({ type: "rollback", id: checkpoint.value }); });
     conversation.addEventListener("change", () => vscode.postMessage({ type: "selectConversation", id: conversation.value }));
     attachments.addEventListener("click", (event) => {
         const id = event.target.dataset.remove;
@@ -92,6 +93,14 @@
         if (message.type === "checkpoint") {
             rollback.disabled = !message.available;
             rollback.title = message.available ? `Revert ${message.count || "last"} Agent-run file write(s)` : "No restorable Agent-run file writes";
+            checkpoint.textContent = "";
+            (message.checkpoints || []).forEach((item, index) => {
+                const option = document.createElement("option");
+                option.value = item.id;
+                option.textContent = `${index === 0 ? "Latest" : "Earlier"} checkpoint: ${item.files} file(s)`;
+                checkpoint.appendChild(option);
+            });
+            checkpoint.disabled = !message.available;
         }
         if (message.type === "removeLast") {
             const messages = transcript.querySelectorAll(".message");

@@ -20,6 +20,19 @@ export interface ConversationTurn {
     completedAt?: string;
 }
 
+export function formatConversationContext(turns: readonly ConversationTurn[], maximumChars = 12_000): string {
+    let remaining = maximumChars;
+    const sections: string[] = [];
+    for (const turn of [...turns].reverse()) {
+        if (remaining <= 0) break;
+        const section = `User: ${turn.prompt}\nNexusIDE: ${turn.response}\n`;
+        const clipped = section.slice(0, remaining);
+        sections.unshift(clipped);
+        remaining -= clipped.length;
+    }
+    return sections.join("\n");
+}
+
 export interface ConversationSummary {
     id: string;
     title: string;

@@ -63,6 +63,10 @@ export class WorkspaceCheckpointStore {
         return checkpoint ? { id, createdAt: checkpoint.createdAt, files: [...checkpoint.files.values()] } : undefined;
     }
 
+    public list(): readonly WorkspaceCheckpoint[] {
+        return [...this.checkpoints.entries()].reverse().map(([id, checkpoint]) => ({ id, createdAt: checkpoint.createdAt, files: [...checkpoint.files.values()] }));
+    }
+
     public discard(id: string): void {
         this.checkpoints.delete(id);
         if (this.activeId === id) this.activeId = undefined;

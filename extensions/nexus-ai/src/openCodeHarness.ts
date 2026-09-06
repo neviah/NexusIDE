@@ -12,6 +12,7 @@ import {
     redactText,
     requireContainedPath,
 } from "@nexus/ai-core";
+import { WorkspaceCheckpoint } from "./workspaceCheckpoint";
 import type * as Acp from "@agentclientprotocol/sdk" with { "resolution-mode": "import" };
 import type {
     ReadTextFileRequest,
@@ -157,6 +158,7 @@ export interface OpenCodeHost {
     beginCheckpoint?(): string;
     finishCheckpoint?(id: string): number;
     rollbackCheckpoint?(id: string): Promise<number>;
+    listCheckpoints?(): readonly WorkspaceCheckpoint[];
 }
 
 export type OpenCodeProcessFactory = (cwd: string, env: NodeJS.ProcessEnv) => ChildProcessWithoutNullStreams;
@@ -261,6 +263,10 @@ export class OpenCodeHarness implements CodingHarness {
 
     public async rollbackCheckpoint(id: string | undefined): Promise<number> {
         return id ? await this.host.rollbackCheckpoint?.(id) ?? 0 : 0;
+    }
+
+    public listCheckpoints(): readonly WorkspaceCheckpoint[] {
+        return this.host.listCheckpoints?.() ?? [];
     }
 
     private async runAcp(

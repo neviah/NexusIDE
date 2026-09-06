@@ -149,6 +149,8 @@ Only the streamed completion is conclusive. Several providers serve model discov
 
 `NexusIDE: Run Free Provider Smoke Check` is a fast, user-invoked dashboard freshness check. It records the last health outcome in provider state and does not stream generation, so it is safe to use before an Agent run but does not replace the full live smoke script.
 
+The Provider Catalog surfaces that latest smoke outcome in the provider status line so stale credentials or unavailable routes are visible before a run starts.
+
 ## Observability
 
 Store bounded, redacted operational data:

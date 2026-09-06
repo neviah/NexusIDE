@@ -48,6 +48,10 @@ export class WorkspaceAgentHost implements vscode.Disposable {
         return this.checkpoints.finish(id)?.files.length ?? 0;
     }
 
+    public listCheckpoints() {
+        return this.checkpoints.list();
+    }
+
     public async rollbackCheckpoint(id: string): Promise<number> {
         const checkpoint = this.checkpoints.get(id);
         if (!checkpoint || checkpoint.files.length === 0) return 0;
