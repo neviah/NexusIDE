@@ -49,6 +49,7 @@ test("OpenCode ACP adapter passes the reusable harness lifecycle", async () => {
     }
 });
 
+
 test("commit and push require approval while destructive operations stay denied", () => {
     assert.equal(isDeniedAgentOperation("git commit -m test"), false);
     assert.equal(isDeniedAgentOperation("git push origin main"), false);

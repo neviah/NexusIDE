@@ -304,6 +304,11 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
                 response += audit;
                 await this.post({ type: "delta", text: audit });
             }
+            if (!failure && summary?.status === "completed" && !response.trim() && summary.changedFiles.length === 0 && summary.validations.length === 0) {
+                failure = "OpenCode ended without a response, tool activity, file changes, or validation. Retry with a different available model or shorten the request.";
+                response = failure;
+                await this.post({ type: "delta", text: failure });
+            }
 
             const turn = {
                 prompt: message.prompt.trim(),
