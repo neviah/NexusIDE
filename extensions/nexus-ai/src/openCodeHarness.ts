@@ -528,3 +528,12 @@ export function modelProfileScore(value: string, profile: AgentProfile): number 
     const coding = /(?:coder|code|gpt-oss|glm|qwen|nemotron)/.test(name) ? 20 : 0;
     return profile === "unity" ? scale * 2 + coding : profile === "coding" ? scale + coding : 0;
 }
+
+export function selectNextFreeModel(configOptions: readonly SessionConfigOption[], currentValue: string): { configId: string; value: string; name: string } | undefined {
+    const modelConfig = configOptions.find((option) => option.type === "select" && (option.category === "model" || option.id === "model"));
+    if (!modelConfig || modelConfig.type !== "select") return undefined;
+    const options = modelConfig.options.flatMap((option) => "group" in option ? option.options : [option]).filter((option) => isNoCostModel(option.value));
+    const currentIndex = options.findIndex((option) => option.value === currentValue);
+    const next = options[currentIndex + 1];
+    return next ? { configId: modelConfig.id, value: next.value, name: next.name } : undefined;
+}

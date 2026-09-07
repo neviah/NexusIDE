@@ -10,7 +10,7 @@ import type {
     WriteTextFileRequest,
 } from "@agentclientprotocol/sdk" with { "resolution-mode": "import" };
 import { AgentEvent, requireContainedPath } from "@nexus/ai-core";
-import { buildOpenCodeConfig, isDeniedAgentOperation, isReadOnlyUnityTool, modelProfileScore, OpenCodeHarness, OpenCodeHost, OpenCodeProcessFactory, requiresExplicitAgentApproval, selectFreeModel } from "../../openCodeHarness";
+import { buildOpenCodeConfig, isDeniedAgentOperation, isReadOnlyUnityTool, modelProfileScore, OpenCodeHarness, OpenCodeHost, OpenCodeProcessFactory, requiresExplicitAgentApproval, selectFreeModel, selectNextFreeModel } from "../../openCodeHarness";
 
 test("OpenCode ACP adapter passes the reusable harness lifecycle", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "nexus-acp-"));
@@ -129,6 +129,23 @@ test("model selection never falls through to a paid default", () => {
 test("Unity and coding profiles prefer capable free coding models when no user stack is set", () => {
     assert.ok(modelProfileScore("openrouter/gpt-oss-120b:free", "unity") > modelProfileScore("openrouter/llama-8b:free", "unity"));
     assert.ok(modelProfileScore("groq/qwen3-coder", "coding") > modelProfileScore("groq/plain-model", "coding"));
+});
+
+test("empty completion fallback selects the next advertised no-cost model", () => {
+    const config = [{
+        id: "model",
+        name: "Model",
+        category: "model",
+        type: "select" as const,
+        currentValue: "openrouter/empty:free",
+        options: [
+            { value: "openrouter/empty:free", name: "Empty" },
+            { value: "paid/default", name: "Paid" },
+            { value: "openrouter/working:free", name: "Working" },
+        ],
+    }];
+    assert.equal(selectNextFreeModel(config, "openrouter/empty:free")?.value, "openrouter/working:free");
+    assert.equal(selectNextFreeModel(config, "openrouter/working:free"), undefined);
 });
 
 test("cancellation stops the ACP process and emits a coherent audit summary", async () => {
