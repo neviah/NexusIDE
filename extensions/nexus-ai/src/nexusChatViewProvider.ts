@@ -14,6 +14,7 @@ type WebviewMessage =
     | { type: "ready" }
     | { type: "send"; prompt: string; mode: ChatMode; qualityBar?: string; maxRounds?: number }
     | { type: "attach"; kind: ContextKind }
+    | { type: "attachImage"; label: string; mimeType: string; data: number[] }
     | { type: "removeAttachment"; id: string }
     | { type: "retryStronger" }
     | { type: "regenerate" }
@@ -93,11 +94,30 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
 
         if (message.type === "attach") {
             try {
-                this.attachments.push(await this.contextCollector.collect(message.kind));
+                if (message.kind === "file" && this.activeFileAttached()) {
+                    const active = this.activeFileLabel();
+                    this.attachments = this.attachments.filter((attachment) => !(attachment.kind === "file" && attachment.label === active));
+                } else {
+                    this.attachments.push(await this.contextCollector.collect(message.kind));
+                }
                 await this.postAttachments();
             } catch (error) {
                 await this.post({ type: "status", text: error instanceof Error ? error.message : "Context attachment failed." });
             }
+            return;
+        }
+
+        if (message.type === "attachImage") {
+            if (!/^image\//.test(message.mimeType) || !Array.isArray(message.data)) return;
+            this.attachments.push({
+                id: `image-${Date.now()}`,
+                kind: "image",
+                label: message.label || "Pasted image",
+                content: "",
+                mimeType: message.mimeType,
+                imageData: new Uint8Array(message.data),
+            });
+            await this.postAttachments();
             return;
         }
 
@@ -374,7 +394,19 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
             type: "attachments",
             attachments: this.attachments.map(({ id, label, kind }) => ({ id, label, kind })),
             budget: contextBudgetSummary(this.attachments),
+            activeFile: this.activeFileLabel(),
+            activeFileAttached: this.activeFileAttached(),
         });
+    }
+
+    private activeFileLabel(): string | undefined {
+        const editor = vscode.window.activeTextEditor;
+        return editor ? vscode.workspace.asRelativePath(editor.document.uri, false) : undefined;
+    }
+
+    private activeFileAttached(): boolean {
+        const activeFile = this.activeFileLabel();
+        return Boolean(activeFile && this.attachments.some((attachment) => attachment.kind === "file" && attachment.label === activeFile));
     }
 
     private post(message: unknown): Thenable<boolean> {
@@ -464,7 +496,10 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         .context-tools select { width: 110px; }
         .attach { width: 28px; height: 28px; padding: 0; border: 0; border-radius: 3px; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); cursor: pointer; }
         .attachments { display: flex; flex-wrap: wrap; gap: 5px; padding: 0 8px 7px; }
+        .active-file { margin: 0 8px 7px; padding: 4px 6px; border: 1px solid var(--vscode-widget-border); border-radius: 3px; color: var(--vscode-descriptionForeground); background: var(--vscode-editor-background); font-size: 10px; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+        .active-file button { padding: 0 4px; border: 0; color: inherit; background: transparent; cursor: pointer; }
         .attachment { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 3px 5px; border: 1px solid var(--vscode-widget-border); border-radius: 3px; color: var(--vscode-descriptionForeground); background: var(--vscode-editor-background); }
+        .attachment.image { border-color: var(--vscode-focusBorder); }
         .attachment span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .attachment button { padding: 0; border: 0; color: inherit; background: transparent; cursor: pointer; }
         .status { color: var(--vscode-descriptionForeground); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -499,7 +534,8 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         <section class="composer">
             <div class="input-wrap">
                 <textarea id="prompt" aria-label="Message Nexus AI" placeholder="Ask about this workspace..." spellcheck="true"></textarea>
-                <div id="attachments" class="attachments"></div>
+            <div id="attachments" class="attachments"></div>
+            <div id="activeFile" class="active-file"></div>
                 <div class="actions"><div class="context-tools"><select id="contextKind" aria-label="Context source"><option value="selection">Selection</option><option value="file">Active file</option><option value="symbols">Symbols</option><option value="definition">Definition</option><option value="references">References</option><option value="type">Type info</option><option value="diagnostics">Diagnostics</option><option value="terminal">Terminal selection</option><option value="git-diff">Git diff</option></select><button id="attach" class="attach" title="Attach context" aria-label="Attach context">+</button></div><span id="budget" title="Estimated prompt context budget"></span><span id="status" class="status">Starting...</span><button id="retryStronger" class="send secondary" title="Retry with the next route" aria-label="Retry with the next route" hidden>↧</button><button id="send" class="send" title="Send" aria-label="Send">&#8593;</button></div>
             </div>
         </section>

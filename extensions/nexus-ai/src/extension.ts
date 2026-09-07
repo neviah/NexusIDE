@@ -18,6 +18,7 @@ import { RouteStackViewProvider } from "./routeStackViewProvider";
 import { McpTrustStore } from "./mcpTrustStore";
 import { McpServerManager } from "./mcpServerManager";
 import { McpViewProvider } from "./mcpViewProvider";
+import { AgentStatusViewProvider } from "./agentStatusViewProvider";
 import { findUnityProjects, MCP_SECRET_PREFIX, parseCommandLine, readServerDefinitions, UNITY_DEFAULT_URL, UNITY_SERVER_ID } from "./mcpServers";
 import { bootstrapUnityProject } from "./unityBootstrap";
 
@@ -27,6 +28,7 @@ const ROUTER_VIEW_ID = "nexusRouter.providers";
 const STACK_VIEW_ID = "nexusRouter.stack";
 const COOKBOOK_VIEW_ID = "nexusCookbook.models";
 const MCP_VIEW_ID = "nexusRouter.mcp";
+const AGENT_STATUS_VIEW_ID = "nexusAgent.status";
 let startupRecovery: StartupRecovery | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
@@ -187,6 +189,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         },
         addServer: addMcpServer,
     });
+    const agentStatusProvider = new AgentStatusViewProvider(
+        context.extensionUri,
+        routeStack,
+        providerState,
+        mcpManager,
+        () => agentHarness.listCheckpoints(),
+        () => vscode.workspace.getConfiguration("nexusAI").get<"coding" | "unity" | "review">("agentProfile", "coding"),
+    );
 
     context.subscriptions.push(
         agentHost,
@@ -200,6 +210,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         vscode.window.registerWebviewViewProvider(STACK_VIEW_ID, stackProvider),
         vscode.window.registerWebviewViewProvider(COOKBOOK_VIEW_ID, cookbookProvider),
         vscode.window.registerWebviewViewProvider(MCP_VIEW_ID, mcpProvider),
+        vscode.window.registerWebviewViewProvider(AGENT_STATUS_VIEW_ID, agentStatusProvider),
         vscode.commands.registerCommand("nexusAI.bootstrapUnityProject", async () => {
             const root = vscode.workspace.workspaceFolders?.[0];
             if (!root) return;

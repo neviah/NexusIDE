@@ -1,10 +1,12 @@
-export type ContextKind = "file" | "selection" | "symbols" | "diagnostics" | "definition" | "references" | "type" | "terminal" | "git-diff";
+export type ContextKind = "file" | "selection" | "symbols" | "diagnostics" | "definition" | "references" | "type" | "terminal" | "git-diff" | "image";
 
 export interface ContextAttachment {
     id: string;
     kind: ContextKind;
     label: string;
     content: string;
+    mimeType?: string;
+    imageData?: Uint8Array;
 }
 
 export interface FormattedContext {

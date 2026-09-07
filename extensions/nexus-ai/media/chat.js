@@ -14,6 +14,7 @@
     const checkpoint = document.getElementById("checkpoint");
     const retryStronger = document.getElementById("retryStronger");
     const budget = document.getElementById("budget");
+    const activeFile = document.getElementById("activeFile");
     let mode = "ask";
     let running = false;
     let responseNode;
@@ -77,6 +78,23 @@
             submit();
         }
     });
+    promptInput.addEventListener("paste", async (event) => {
+        for (const item of event.clipboardData?.items ?? []) {
+            if (!item.type.startsWith("image/")) continue;
+            const file = item.getAsFile();
+            if (!file) continue;
+            event.preventDefault();
+            vscode.postMessage({ type: "attachImage", label: file.name || "Pasted image", mimeType: file.type, data: Array.from(new Uint8Array(await file.arrayBuffer())) });
+        }
+    });
+    promptInput.addEventListener("drop", async (event) => {
+        for (const file of event.dataTransfer?.files ?? []) {
+            if (!file.type.startsWith("image/")) continue;
+            event.preventDefault();
+            vscode.postMessage({ type: "attachImage", label: file.name, mimeType: file.type, data: Array.from(new Uint8Array(await file.arrayBuffer())) });
+        }
+    });
+    promptInput.addEventListener("dragover", (event) => event.preventDefault());
 
     window.addEventListener("message", (event) => {
         const message = event.data;
@@ -95,7 +113,7 @@
             attachments.textContent = "";
             message.attachments.forEach((item) => {
                 const chip = document.createElement("span");
-                chip.className = "attachment";
+                chip.className = item.kind === "image" ? "attachment image" : "attachment";
                 const text = document.createElement("span");
                 text.textContent = item.label;
                 const remove = document.createElement("button");
@@ -107,6 +125,21 @@
                 attachments.appendChild(chip);
             });
             if (message.budget) budget.textContent = message.budget;
+            if (message.activeFile !== undefined) {
+                activeFile.textContent = "";
+                if (message.activeFile) {
+                    const label = document.createElement("span");
+                    label.textContent = message.activeFile;
+                    const action = document.createElement("button");
+                    action.textContent = message.activeFileAttached ? "×" : "+";
+                    action.title = message.activeFileAttached ? "Remove active file" : "Attach active file";
+                    action.addEventListener("click", () => vscode.postMessage({ type: "attach", kind: "file" }));
+                    activeFile.append(label, action);
+                    activeFile.style.display = "flex";
+                } else {
+                    activeFile.style.display = "none";
+                }
+            }
         }
         if (message.type === "retryAvailable") retryStronger.hidden = !message.available;
         if (message.type === "checkpoint") {

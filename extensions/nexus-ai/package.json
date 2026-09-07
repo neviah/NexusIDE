@@ -160,6 +160,11 @@
           "id": "nexus-mcp",
           "title": "Nexus MCP",
           "icon": "media/nexuside.svg"
+        },
+        {
+          "id": "nexus-agent",
+          "title": "Nexus Agent",
+          "icon": "media/nexuside.svg"
         }
       ],
       "secondarySidebar": [
@@ -216,6 +221,16 @@
           "icon": "media/nexuside.svg",
           "visibility": "visible",
           "accessibilityHelpContent": "Use the mode, harness, and model controls to configure a conversation. Ask and Design are read-only. Agent capabilities require workspace trust and explicit approval."
+        }
+      ],
+      "nexus-agent": [
+        {
+          "type": "webview",
+          "id": "nexusAgent.status",
+          "name": "Agent Status",
+          "icon": "media/nexuside.svg",
+          "visibility": "visible",
+          "accessibilityHelpContent": "Review Agent profile, workspace trust, route stack, MCP server readiness, checkpoint availability, and smoke status."
         }
       ]
     }

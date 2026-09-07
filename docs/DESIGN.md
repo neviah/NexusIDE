@@ -176,7 +176,9 @@ The three newest completed checkpoints are persisted in workspace state and surv
 
 Unity task completion requires verification evidence appropriate to the change: inspect scene state, check Console diagnostics, run relevant tests, and use a Game View or Scene View screenshot when visual output changed.
 
-The context menu can attach language-service definition locations, references, and hover type information alongside files, symbols, and diagnostics. Agent activity is rendered as a structured timeline of pending, completed, failed, output, and changed steps so failed Unity operations expose their returned details.
+The context menu can attach language-service definition locations, references, and hover type information alongside files, symbols, and diagnostics. The composer shows a compact active-file chip and accepts pasted or dropped image files as bounded attachments. Image payloads are preserved for vision-capable routing; they are not silently sent to text-only providers or the OpenCode ACP harness.
+
+A separate Nexus Agent view summarizes profile, workspace trust, Auto Stack size, MCP readiness, and available checkpoints without crowding the chat or router surfaces. Agent activity is rendered as a structured timeline of pending, completed, failed, output, and changed steps so failed Unity operations expose their returned details.
 
 ### 6.3 File Safety
 
