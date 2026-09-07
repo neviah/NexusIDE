@@ -148,6 +148,19 @@ test("empty completion fallback selects the next advertised no-cost model", () =
     assert.equal(selectNextFreeModel(config, "openrouter/working:free"), undefined);
 });
 
+test("an unresponsive OpenCode run is cancelled after its idle timeout", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "nexus-acp-idle-"));
+    const host = new FakeHost(root);
+    const harness = new OpenCodeHarness(host, "unused", fixtureProcess(() => undefined), undefined, undefined, undefined, 15_000);
+    try {
+        const events = await collect(harness.start({ runId: "idle", prompt: "cancel this run", workspaceRoots: [root], modelSelection: "openrouter" }, new AbortController().signal));
+        assert.equal(events.some((event) => event.type === "progress" && event.message.includes("no activity")), true);
+        assert.equal(events.at(-1)?.type, "cancelled");
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
+});
+
 test("cancellation stops the ACP process and emits a coherent audit summary", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "nexus-acp-cancel-"));
     const host = new FakeHost(root);

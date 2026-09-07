@@ -46,6 +46,12 @@
           "scope": "resource",
           "description": "Agent behavior profile for this workspace: coding, Unity build/debug, or read-only review."
         },
+        "nexusAI.agentIdleTimeoutSeconds": {
+          "type": "number",
+          "default": 120,
+          "minimum": 15,
+          "description": "Cancel an Agent run after this many seconds without OpenCode activity."
+        },
         "nexusAI.customOpenAI.baseUrl": {
           "type": "string",
           "default": "http://127.0.0.1:1234/v1",

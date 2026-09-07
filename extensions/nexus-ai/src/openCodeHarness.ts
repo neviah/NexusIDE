@@ -164,10 +164,13 @@ export interface OpenCodeHost {
 export type OpenCodeProcessFactory = (cwd: string, env: NodeJS.ProcessEnv) => ChildProcessWithoutNullStreams;
 export type OpenCodeEnvironmentProvider = () => Promise<NodeJS.ProcessEnv>;
 
+const DEFAULT_IDLE_TIMEOUT_MS = 120_000;
+
 export class OpenCodeHarness implements CodingHarness {
     private readonly activeRuns = new Map<string, ActiveRun>();
     private readonly processFactory: OpenCodeProcessFactory;
     private readonly environmentProvider: OpenCodeEnvironmentProvider;
+    private readonly idleTimeoutMs: number;
 
     public constructor(
         private readonly host: OpenCodeHost,
@@ -176,7 +179,9 @@ export class OpenCodeHarness implements CodingHarness {
         environmentProvider?: OpenCodeEnvironmentProvider,
         private readonly mcpProvider?: AgentMcpProvider,
         private readonly profileProvider?: AgentProfileProvider,
+        idleTimeoutMs?: number,
     ) {
+        this.idleTimeoutMs = Math.max(15_000, idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS);
         const resolvedExecutable = resolveOpenCodeExecutable(executable);
         this.processFactory = processFactory ?? ((cwd, env) => spawn(resolvedExecutable, ["acp"], {
             cwd,
@@ -218,12 +223,23 @@ export class OpenCodeHarness implements CodingHarness {
         });
         const active: ActiveRun = { process: child };
         this.activeRuns.set(request.runId, active);
-        child.stderr.on("data", (chunk: Buffer) => queue.push({ type: "progress", message: redactText(chunk.toString("utf8").trim(), secrets) }));
+        let idleTimer: NodeJS.Timeout | undefined;
+        const resetIdleTimer = () => {
+            clearTimeout(idleTimer);
+            idleTimer = setTimeout(() => {
+                queue.push({ type: "progress", message: `OpenCode produced no activity for ${Math.round(this.idleTimeoutMs / 1000)}s; cancelling` });
+                void this.cancel(request.runId);
+            }, this.idleTimeoutMs);
+        };
+        const markActivity = () => resetIdleTimer();
+        child.stderr.on("data", (chunk: Buffer) => { markActivity(); queue.push({ type: "progress", message: redactText(chunk.toString("utf8").trim(), secrets) }); });
         child.once("error", (error) => queue.fail(error));
         const abort = () => void this.cancel(request.runId);
         signal.addEventListener("abort", abort, { once: true });
+        resetIdleTimer();
 
-        void this.runAcp(request, child, active, queue, secrets).finally(() => {
+        void this.runAcp(request, child, active, queue, secrets, markActivity).finally(() => {
+            clearTimeout(idleTimer);
             signal.removeEventListener("abort", abort);
             this.activeRuns.delete(request.runId);
             if (!child.killed) {
@@ -275,6 +291,7 @@ export class OpenCodeHarness implements CodingHarness {
         active: ActiveRun,
         queue: AsyncEventQueue<AgentEvent>,
         secrets: readonly string[],
+        onActivity: () => void,
     ): Promise<void> {
         const changedFiles = new Map<string, AgentChangedFile>();
         const validations = new Map<string, AgentValidation>();
@@ -320,6 +337,7 @@ export class OpenCodeHarness implements CodingHarness {
                                 if (message.kind === "stop") {
                                     return message.stopReason;
                                 }
+                                onActivity();
                                 await this.mapUpdate(message.update, queue, changedFiles, validations, secrets);
                             }
                         });
