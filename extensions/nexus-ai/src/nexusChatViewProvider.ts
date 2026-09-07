@@ -411,6 +411,11 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         .empty strong { color: var(--vscode-foreground); font-weight: 600; }
         .message { margin-bottom: 18px; }
         .message header { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 7px; color: var(--vscode-descriptionForeground); font-size: 11px; }
+        .bubble-actions { position: absolute; top: 4px; right: 4px; display: none; gap: 3px; }
+        .message { position: relative; }
+        .message:hover .bubble-actions { display: flex; }
+        .bubble-action { width: 22px; height: 20px; padding: 0; border: 0; border-radius: 3px; color: var(--vscode-descriptionForeground); background: var(--vscode-sideBar-background); cursor: pointer; }
+        .bubble-action:hover { color: var(--vscode-foreground); background: var(--vscode-toolbar-hoverBackground); }
         .message p { margin: 0; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
         .user { display: grid; justify-items: end; }
         .user header { width: min(88%, 680px); flex-direction: row-reverse; }

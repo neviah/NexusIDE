@@ -48,11 +48,25 @@
     });
     transcript.addEventListener("click", (event) => {
         const toggle = event.target.closest?.(".activity-toggle");
-        if (!toggle) return;
-        const container = toggle.parentElement;
-        const collapsed = container.classList.toggle("collapsed");
-        toggle.setAttribute("aria-expanded", String(!collapsed));
-        toggle.querySelector(".chevron").textContent = collapsed ? "▶" : "▼";
+        if (toggle) {
+            const container = toggle.parentElement;
+            const collapsed = container.classList.toggle("collapsed");
+            toggle.setAttribute("aria-expanded", String(!collapsed));
+            toggle.querySelector(".chevron").textContent = collapsed ? "▶" : "▼";
+            return;
+        }
+        const bubbleAction = event.target.closest?.(".bubble-action");
+        if (!bubbleAction) return;
+        const message = bubbleAction.closest(".message");
+        const text = message?.querySelector("p")?.textContent ?? "";
+        if (bubbleAction.dataset.action === "copy" && text) {
+            void navigator.clipboard.writeText(text).then(() => setStatus("Copied message"), () => setStatus("Copy failed"));
+            return;
+        }
+        if (bubbleAction.dataset.action === "resend" && text) {
+            promptInput.value = text;
+            submit();
+        }
     });
     promptInput.addEventListener("keydown", (event) => {
         if (event.key === "Enter" && !event.shiftKey) {
@@ -175,7 +189,7 @@
     });
 
     function appendTurn(promptText, meta, responseText, routeText, createdAt, completedAt) {
-        transcript.insertAdjacentHTML("beforeend", '<article class="message user"><header><strong>You</strong><span></span></header><p></p></article><article class="message assistant"><header><strong>Nexus AI</strong><span></span></header><p></p><div class="route"></div></article>');
+        transcript.insertAdjacentHTML("beforeend", '<article class="message user"><header><strong>You</strong><span></span></header><div class="bubble-actions"><button class="bubble-action" data-action="copy" title="Copy prompt" aria-label="Copy prompt">⧉</button><button class="bubble-action" data-action="resend" title="Resend prompt" aria-label="Resend prompt">↻</button></div><p></p></article><article class="message assistant"><header><strong>Nexus AI</strong><span></span></header><div class="bubble-actions"><button class="bubble-action" data-action="copy" title="Copy response" aria-label="Copy response">⧉</button></div><p></p><div class="route"></div></article>');
         const messages = transcript.querySelectorAll(".message");
         const user = messages[messages.length - 2];
         const assistant = messages[messages.length - 1];

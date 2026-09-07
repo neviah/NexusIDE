@@ -155,6 +155,11 @@
           "id": "nexus-cookbook",
           "title": "Model Cookbook",
           "icon": "media/nexuside.svg"
+        },
+        {
+          "id": "nexus-mcp",
+          "title": "Nexus MCP",
+          "icon": "media/nexuside.svg"
         }
       ],
       "secondarySidebar": [
@@ -181,7 +186,9 @@
           "name": "Providers and Models",
           "icon": "media/nexuside.svg",
           "visibility": "visible"
-        },
+        }
+      ],
+      "nexus-mcp": [
         {
           "type": "webview",
           "id": "nexusRouter.mcp",

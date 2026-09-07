@@ -70,6 +70,9 @@ export class CompletionRouter {
                         }
                         yield event;
                     }
+                    if (!emittedContent) {
+                        throw new NexusError({ code: "invalid-response", message: "The selected provider completed without response text.", retryable: false });
+                    }
                     return;
                 } catch (error) {
                     lastError = normalizeError(error, providerId);

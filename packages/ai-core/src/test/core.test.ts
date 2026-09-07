@@ -184,6 +184,30 @@ test("cancellation is normalized and never falls back", async () => {
     assert.deepEqual(secondCalls, []);
 });
 
+test("a provider that completes without response text falls back to the next no-cost route", async () => {
+    const empty = new OpenAICompatibleAdapter({
+        id: "empty",
+        displayName: "Empty",
+        baseUrl: "https://example.test/v1",
+        costClass: "free-tier",
+        fetch: async () => new Response("data: {}\n\ndata: [DONE]\n\n", { headers: { "content-type": "text/event-stream" } }),
+    });
+    const working = new OpenAICompatibleAdapter({
+        id: "working",
+        displayName: "Working",
+        baseUrl: "https://example.test/v1",
+        costClass: "free-tier",
+        fetch: async () => new Response('data: {"choices":[{"delta":{"content":"ready"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n', { headers: { "content-type": "text/event-stream" } }),
+    });
+    const events = await collect(new CompletionRouter({ sleep: async () => undefined }).stream({
+        runId: "empty-fallback",
+        candidates: [candidate(empty, "free-tier"), candidate(working, "free-tier")],
+        messages: [{ role: "user", content: "Say ready" }],
+    }, new AbortController().signal));
+    assert.equal(events.filter((event) => event.type === "fallback").length, 1);
+    assert.equal(events.filter((event) => event.type === "text-delta").map((event) => event.text).join(""), "ready");
+});
+
 test("malformed streams and HTTP errors become structured errors", async () => {
     await assert.rejects(async () => collect(sseJson(responseFrom(MALFORMED_SSE_STREAM, "text/event-stream").body, new AbortController().signal)), (error: unknown) => error instanceof NexusError && error.code === "invalid-response");
 
