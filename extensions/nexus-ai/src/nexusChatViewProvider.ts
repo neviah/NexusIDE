@@ -36,7 +36,8 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
     private attachments: ContextAttachment[] = [];
     private viewReady = false;
     private lastCheckpointId?: string;
-    private lastFailedAgentTurn?: { prompt: string; mode: ChatMode; qualityBar?: string; maxRounds?: number };
+    private lastFailedAgentTurn?: { prompt: string; mode: ChatMode; qualityBar?: string; maxRounds?: number; preferredRoutes: readonly string[] };
+    private retriedEmptyAgentTurn = false;
 
     public constructor(
         private readonly extensionUri: vscode.Uri,
@@ -132,7 +133,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
             const failed = this.lastFailedAgentTurn;
             this.lastFailedAgentTurn = undefined;
             await this.post({ type: "retryAvailable", available: false });
-            await this.runPrompt({ type: "send", ...failed }, false);
+            await this.runPrompt({ type: "send", ...failed }, false, failed.preferredRoutes.slice(1));
             return;
         }
 
@@ -181,7 +182,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         await this.post({ type: "status", text: `Ready / ${this.chatRuntime.providerNames().join(" + ")}`, tone: "ready" });
     }
 
-    private async runPrompt(message: Extract<WebviewMessage, { type: "send" }>, replaceLast: boolean): Promise<void> {
+    private async runPrompt(message: Extract<WebviewMessage, { type: "send" }>, replaceLast: boolean, routeOverride?: readonly string[]): Promise<void> {
         this.activeRun?.abort();
         const run = new AbortController();
         this.activeRun = run;
@@ -197,7 +198,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         });
 
         if (agentMode) {
-            await this.streamAgent(message, replaceLast, run, createdAt);
+            await this.streamAgent(message, replaceLast, run, createdAt, routeOverride);
             return;
         }
 
@@ -264,6 +265,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         replaceLast: boolean,
         run: AbortController,
         createdAt: string,
+        routeOverride?: readonly string[],
     ): Promise<void> {
         const runId = `${Date.now()}`;
         this.activeRunId = runId;
@@ -288,7 +290,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
                 prompt,
                 workspaceRoots: (vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri.fsPath),
                 modelSelection: "auto" as const,
-                preferredRoutes: this.routeStack.load(),
+                preferredRoutes: routeOverride ?? this.routeStack.load(),
             };
             const events = message.mode === "loop"
                 ? runQualityLoop(this.agentHarness, {
@@ -336,9 +338,18 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
                 await this.post({ type: "delta", text: audit });
             }
             if (!failure && summary?.status === "completed" && !response.trim() && summary.changedFiles.length === 0 && summary.validations.length === 0) {
+                const preferredRoutes = routeOverride ?? this.routeStack.load();
+                if (!routeOverride && !this.retriedEmptyAgentTurn && preferredRoutes.length > 1) {
+                    this.retriedEmptyAgentTurn = true;
+                    await this.post({ type: "agentActivity", text: `OpenCode returned no output; retrying with ${preferredRoutes[1]}`, status: "progress" });
+                    checkpoints.finishCheckpoint?.(checkpointId);
+                    this.activeRun = undefined;
+                    await this.runPrompt(message, replaceLast, preferredRoutes.slice(1));
+                    return;
+                }
                 failure = "OpenCode ended without a response, tool activity, file changes, or validation. Retry with a different available model or shorten the request.";
                 response = failure;
-                this.lastFailedAgentTurn = { prompt: message.prompt.trim(), mode: message.mode, qualityBar: message.qualityBar, maxRounds: message.maxRounds };
+                this.lastFailedAgentTurn = { prompt: message.prompt.trim(), mode: message.mode, qualityBar: message.qualityBar, maxRounds: message.maxRounds, preferredRoutes };
                 await this.post({ type: "delta", text: failure });
                 await this.post({ type: "retryAvailable", available: true });
             }
