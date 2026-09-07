@@ -23,6 +23,8 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^1.4.0",
+    "@earendil-works/pi-agent-core": "^0.85.1",
+    "@earendil-works/pi-ai": "^0.85.1",
     "@nexus/ai-core": "file:../../packages/ai-core"
   },
   "contributes": {
@@ -41,7 +43,11 @@
         },
         "nexusAI.agentProfile": {
           "type": "string",
-          "enum": ["coding", "unity", "review"],
+          "enum": [
+            "coding",
+            "unity",
+            "review"
+          ],
           "default": "coding",
           "scope": "resource",
           "description": "Agent behavior profile for this workspace: coding, Unity build/debug, or read-only review."
@@ -51,6 +57,12 @@
           "default": 120,
           "minimum": 15,
           "description": "Cancel an Agent run after this many seconds without OpenCode activity."
+        },
+        "nexusAI.agentHarness": {
+          "type": "string",
+          "enum": ["opencode", "pi"],
+          "default": "opencode",
+          "description": "Agent harness: OpenCode (current default) or Pi (experimental). Pi is an in-process agent with native tool calling."
         },
         "nexusAI.customOpenAI.baseUrl": {
           "type": "string",
@@ -69,14 +81,43 @@
           "additionalProperties": {
             "type": "object",
             "properties": {
-              "transport": { "type": "string", "enum": ["stdio", "http"] },
-              "label": { "type": "string" },
-              "command": { "type": "string" },
-              "args": { "type": "array", "items": { "type": "string" } },
-              "env": { "type": "object", "additionalProperties": { "type": "string" } },
-              "cwd": { "type": "string" },
-              "url": { "type": "string" },
-              "headers": { "type": "object", "additionalProperties": { "type": "string" } }
+              "transport": {
+                "type": "string",
+                "enum": [
+                  "stdio",
+                  "http"
+                ]
+              },
+              "label": {
+                "type": "string"
+              },
+              "command": {
+                "type": "string"
+              },
+              "args": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "env": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "cwd": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              },
+              "headers": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }

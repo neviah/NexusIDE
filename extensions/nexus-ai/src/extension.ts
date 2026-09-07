@@ -8,6 +8,7 @@ import { NexusRouterViewProvider } from "./nexusRouterViewProvider";
 import { RouteStackStore } from "./routeStackStore";
 import { WorkspaceContextCollector } from "./workspaceContext";
 import { OpenCodeHarness } from "./openCodeHarness";
+import { PiHarness } from "./piHarness";
 import { WorkspaceAgentHost } from "./workspaceAgentHost";
 import { ProviderStateStore } from "./providerStateStore";
 import { showLanguageToolingReport } from "./languageTooling";
@@ -53,27 +54,36 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const openCodePath = vscode.workspace.getConfiguration("nexusAI").get("openCodePath", "").trim();
     const mcpTrust = new McpTrustStore(context.globalState);
     const mcpManager = new McpServerManager(mcpTrust, secretStore, readServerDefinitions);
-    const agentHarness = new OpenCodeHarness(agentHost, openCodePath || undefined, undefined, async () => {
-        const openRouterKey = await secretStore.get(OPENROUTER_API_KEY);
-        const groqKey = await secretStore.get(GROQ_API_KEY);
-        const environment: NodeJS.ProcessEnv = {
-            ...(openRouterKey ? { OPENROUTER_API_KEY: openRouterKey } : {}),
-            ...(groqKey ? { GROQ_API_KEY: groqKey } : {}),
-        };
-        for (const provider of CATALOG_PROVIDER_DEFINITIONS) {
-            const apiKey = await secretStore.get(provider.secretKey);
-            if (apiKey) environment[provider.environmentKey] = apiKey;
-        }
-        return environment;
-    }, async () => {
-        const trusted = mcpManager.trustedDefinitions();
-        return await Promise.all(trusted.map(async (definition) => ({
-            id: definition.id,
-            connection: definition.connection,
-            token: await secretStore.get(MCP_SECRET_PREFIX + definition.id),
-        })));
-    }, () => vscode.workspace.getConfiguration("nexusAI").get<"coding" | "unity" | "review">("agentProfile", "coding"),
-    vscode.workspace.getConfiguration("nexusAI").get("agentIdleTimeoutSeconds", 120) * 1_000);
+    const agentHarnessSelection = vscode.workspace.getConfiguration("nexusAI").get<"opencode" | "pi">("agentHarness", "opencode");
+    const agentHarness = agentHarnessSelection === "pi"
+        ? new PiHarness({
+            secretStore,
+            defaultModelId: "openrouter/gpt-oss-120b:free",
+            streamFn: async () => { throw new Error("Pi stream function not yet configured. Set nexusAI.agentHarness to 'opencode' to use the current harness."); },
+            workspaceRoots: [],
+            systemPrompt: "You are NexusIDE's coding agent. Make focused, validated changes.",
+        })
+        : new OpenCodeHarness(agentHost, openCodePath || undefined, undefined, async () => {
+            const openRouterKey = await secretStore.get(OPENROUTER_API_KEY);
+            const groqKey = await secretStore.get(GROQ_API_KEY);
+            const environment: NodeJS.ProcessEnv = {
+                ...(openRouterKey ? { OPENROUTER_API_KEY: openRouterKey } : {}),
+                ...(groqKey ? { GROQ_API_KEY: groqKey } : {}),
+            };
+            for (const provider of CATALOG_PROVIDER_DEFINITIONS) {
+                const apiKey = await secretStore.get(provider.secretKey);
+                if (apiKey) environment[provider.environmentKey] = apiKey;
+            }
+            return environment;
+        }, async () => {
+            const trusted = mcpManager.trustedDefinitions();
+            return await Promise.all(trusted.map(async (definition) => ({
+                id: definition.id,
+                connection: definition.connection,
+                token: await secretStore.get(MCP_SECRET_PREFIX + definition.id),
+            })));
+        }, () => vscode.workspace.getConfiguration("nexusAI").get<"coding" | "unity" | "review">("agentProfile", "coding"),
+        vscode.workspace.getConfiguration("nexusAI").get("agentIdleTimeoutSeconds", 120) * 1_000);
     const setProviderKey = async (provider: string, secretKey: string): Promise<void> => {
         const apiKey = await vscode.window.showInputBox({
             title: `Set ${provider} API Key`,
