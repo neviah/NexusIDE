@@ -109,7 +109,7 @@ The composer includes:
 
 The chat pane uses the configured Auto Stack rather than duplicating provider and model controls. OpenCode remains the admitted coding harness. Loop runs bounded builder and independent critic rounds against a user-visible quality bar.
 
-The pane is constrained to the Secondary Side Bar viewport. Conversation content scrolls inside the transcript and follows new turns, response deltas, and operational activity. Provider discovery and agent activity are factual, collapsible progress records rather than hidden model reasoning.
+The pane is constrained to the Secondary Side Bar viewport. Conversation content scrolls inside the transcript and follows new turns, response deltas, and operational activity. Provider discovery and agent activity are factual, collapsible progress records rather than hidden model reasoning. Completed streams without response text are invalid and fall back through the configured no-cost stack. A failed or empty Agent run can be retried once through the next configured route from a compact control, without duplicating model management in chat.
 
 ### 5.3 Mode Contracts
 

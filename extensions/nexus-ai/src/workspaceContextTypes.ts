@@ -36,3 +36,13 @@ export function formatContextBudget(attachments: readonly ContextAttachment[], m
     const content = sections.join("");
     return { content, usedChars: content.length, omittedAttachments };
 }
+
+export function estimateContextTokens(text: string): number {
+    return Math.ceil(text.length / 4);
+}
+
+export function contextBudgetSummary(attachments: readonly ContextAttachment[], maximumChars = 30_000): string {
+    const budget = formatContextBudget(attachments, maximumChars);
+    if (!attachments.length) return "Context budget ready";
+    return `~${estimateContextTokens(budget.content).toLocaleString()} context tokens · ${budget.omittedAttachments ? `${budget.omittedAttachments} omitted` : `${attachments.length} included`}`;
+}

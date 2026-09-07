@@ -21,7 +21,7 @@ test("chat webview script attaches controls and announces readiness", () => {
         public addEventListener(type: string, handler: Handler): void { this.handlers.set(type, handler); }
         public setAttribute(): void {}
     }
-    const elements = new Map(["transcript", "prompt", "send", "status", "contextKind", "attachments", "conversation", "checkpoint", "quality", "qualityBar", "maxRounds", "attach", "rollback", "regenerate", "newConversation"].map((id) => [id, new FakeElement()]));
+    const elements = new Map(["transcript", "prompt", "send", "status", "budget", "contextKind", "attachments", "conversation", "checkpoint", "quality", "qualityBar", "maxRounds", "attach", "rollback", "retryStronger", "regenerate", "newConversation"].map((id) => [id, new FakeElement()]));
     const modes = ["ask", "agent", "design", "loop"].map((mode) => {
         const button = new FakeElement();
         button.dataset.mode = mode;

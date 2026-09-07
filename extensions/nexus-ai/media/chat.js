@@ -12,6 +12,8 @@
     const maxRounds = document.getElementById("maxRounds");
     const rollback = document.getElementById("rollback");
     const checkpoint = document.getElementById("checkpoint");
+    const retryStronger = document.getElementById("retryStronger");
+    const budget = document.getElementById("budget");
     let mode = "ask";
     let running = false;
     let responseNode;
@@ -41,6 +43,7 @@
     document.getElementById("regenerate").addEventListener("click", () => { if (!running) vscode.postMessage({ type: "regenerate" }); });
     document.getElementById("newConversation").addEventListener("click", () => vscode.postMessage({ type: "newConversation" }));
     rollback.addEventListener("click", () => { if (!running && !rollback.disabled) vscode.postMessage({ type: "rollback", id: checkpoint.value }); });
+    retryStronger.addEventListener("click", () => { if (!running && !retryStronger.hidden) vscode.postMessage({ type: "retryStronger" }); });
     conversation.addEventListener("change", () => vscode.postMessage({ type: "selectConversation", id: conversation.value }));
     attachments.addEventListener("click", (event) => {
         const id = event.target.dataset.remove;
@@ -103,7 +106,9 @@
                 chip.append(text, remove);
                 attachments.appendChild(chip);
             });
+            if (message.budget) budget.textContent = message.budget;
         }
+        if (message.type === "retryAvailable") retryStronger.hidden = !message.available;
         if (message.type === "checkpoint") {
             rollback.disabled = !message.available;
             rollback.title = message.available ? `Revert ${message.count || "last"} Agent-run file write(s)` : "No restorable Agent-run file writes";

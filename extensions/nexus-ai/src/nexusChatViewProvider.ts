@@ -3,7 +3,7 @@ import { AgentRunSummary, CodingHarness, normalizeError, qualifyHarness } from "
 import { ModelSelection, ReadOnlyChatRuntime } from "./readOnlyChatRuntime";
 import { ConversationStore, formatConversationContext } from "./conversationStore";
 import { WorkspaceContextCollector } from "./workspaceContext";
-import { ContextAttachment, ContextKind, formatContext } from "./workspaceContextTypes";
+import { ContextAttachment, ContextKind, contextBudgetSummary, formatContext } from "./workspaceContextTypes";
 import { runQualityLoop } from "./qualityLoop";
 import { RouteStackStore } from "./routeStackStore";
 import { formatWorkspaceInstructions, loadWorkspaceInstructions } from "./workspaceInstructions";
@@ -15,6 +15,7 @@ type WebviewMessage =
     | { type: "send"; prompt: string; mode: ChatMode; qualityBar?: string; maxRounds?: number }
     | { type: "attach"; kind: ContextKind }
     | { type: "removeAttachment"; id: string }
+    | { type: "retryStronger" }
     | { type: "regenerate" }
     | { type: "newConversation" }
     | { type: "selectConversation"; id: string }
@@ -34,6 +35,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
     private attachments: ContextAttachment[] = [];
     private viewReady = false;
     private lastCheckpointId?: string;
+    private lastFailedAgentTurn?: { prompt: string; mode: ChatMode; qualityBar?: string; maxRounds?: number };
 
     public constructor(
         private readonly extensionUri: vscode.Uri,
@@ -92,7 +94,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         if (message.type === "attach") {
             try {
                 this.attachments.push(await this.contextCollector.collect(message.kind));
-                await this.post({ type: "attachments", attachments: this.attachments.map(({ id, label, kind }) => ({ id, label, kind })) });
+                await this.postAttachments();
             } catch (error) {
                 await this.post({ type: "status", text: error instanceof Error ? error.message : "Context attachment failed." });
             }
@@ -101,7 +103,16 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
 
         if (message.type === "removeAttachment") {
             this.attachments = this.attachments.filter((attachment) => attachment.id !== message.id);
-            await this.post({ type: "attachments", attachments: this.attachments.map(({ id, label, kind }) => ({ id, label, kind })) });
+            await this.postAttachments();
+            return;
+        }
+
+        if (message.type === "retryStronger") {
+            if (!this.lastFailedAgentTurn) return;
+            const failed = this.lastFailedAgentTurn;
+            this.lastFailedAgentTurn = undefined;
+            await this.post({ type: "retryAvailable", available: false });
+            await this.runPrompt({ type: "send", ...failed }, false);
             return;
         }
 
@@ -190,7 +201,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
                 } else if (event.type === "route-attempt") {
                     route = `${event.providerId} / ${event.modelId}`;
                     await this.post({ type: "status", text: `Generating / ${route}` });
-                    await this.post({ type: "agentActivity", text: `Generating with ${route}` });
+                    await this.post({ type: "agentActivity", text: `Generating with ${route}`, status: "progress" });
                 } else if (event.type === "fallback") {
                     route = `${event.fromProviderId} / ${event.fromModelId} -> ${event.toProviderId} / ${event.toModelId} (${event.reason})`;
                     await this.post({ type: "agentActivity", text: `Fallback: ${route}` });
@@ -214,7 +225,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
             }
             await this.post({ type: "conversations", conversations: this.conversations.list(), activeId: this.conversations.activeId() });
             this.attachments = [];
-            await this.post({ type: "attachments", attachments: [] });
+            await this.postAttachments();
             await this.post({ type: "runDone", route, completedAt });
         } catch (error) {
             const normalized = normalizeError(error);
@@ -307,7 +318,9 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
             if (!failure && summary?.status === "completed" && !response.trim() && summary.changedFiles.length === 0 && summary.validations.length === 0) {
                 failure = "OpenCode ended without a response, tool activity, file changes, or validation. Retry with a different available model or shorten the request.";
                 response = failure;
+                this.lastFailedAgentTurn = { prompt: message.prompt.trim(), mode: message.mode, qualityBar: message.qualityBar, maxRounds: message.maxRounds };
                 await this.post({ type: "delta", text: failure });
+                await this.post({ type: "retryAvailable", available: true });
             }
 
             const turn = {
@@ -327,7 +340,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
             }
             await this.post({ type: "conversations", conversations: this.conversations.list(), activeId: this.conversations.activeId() });
             this.attachments = [];
-            await this.post({ type: "attachments", attachments: [] });
+            await this.postAttachments();
             if (summary?.status === "cancelled") {
                 await this.post({ type: "runStopped" });
             } else if (failure) {
@@ -354,6 +367,14 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         const checkpoints = (this.agentHarness as CheckpointHarness).listCheckpoints?.() ?? [];
         this.lastCheckpointId = checkpoints[0]?.id;
         await this.post({ type: "checkpoint", available: checkpoints.length > 0, count, checkpoints: checkpoints.map((checkpoint) => ({ id: checkpoint.id, createdAt: checkpoint.createdAt, files: checkpoint.files.length })) });
+    }
+
+    private async postAttachments(): Promise<void> {
+        await this.post({
+            type: "attachments",
+            attachments: this.attachments.map(({ id, label, kind }) => ({ id, label, kind })),
+            budget: contextBudgetSummary(this.attachments),
+        });
     }
 
     private post(message: unknown): Thenable<boolean> {
@@ -448,8 +469,10 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
         .attachment button { padding: 0; border: 0; color: inherit; background: transparent; cursor: pointer; }
         .status { color: var(--vscode-descriptionForeground); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .send { min-width: 30px; height: 28px; border: 0; border-radius: 3px; color: var(--vscode-button-foreground); background: var(--vscode-button-background); cursor: pointer; }
+        .send.secondary { color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); }
         .send:hover { background: var(--vscode-button-hoverBackground); }
         .send:disabled { opacity: .5; cursor: default; }
+        #budget { margin-left: auto; color: var(--vscode-descriptionForeground); font-size: 10px; white-space: nowrap; }
         @media (max-width: 330px) {
             .mode { grid-template-columns: repeat(2, minmax(0, 1fr)); height: 58px; }
         }
@@ -477,7 +500,7 @@ export class NexusChatViewProvider implements vscode.WebviewViewProvider {
             <div class="input-wrap">
                 <textarea id="prompt" aria-label="Message Nexus AI" placeholder="Ask about this workspace..." spellcheck="true"></textarea>
                 <div id="attachments" class="attachments"></div>
-                <div class="actions"><div class="context-tools"><select id="contextKind" aria-label="Context source"><option value="selection">Selection</option><option value="file">Active file</option><option value="symbols">Symbols</option><option value="definition">Definition</option><option value="references">References</option><option value="type">Type info</option><option value="diagnostics">Diagnostics</option><option value="terminal">Terminal selection</option><option value="git-diff">Git diff</option></select><button id="attach" class="attach" title="Attach context" aria-label="Attach context">+</button></div><span id="status" class="status">Starting...</span><button id="send" class="send" title="Send" aria-label="Send">&#8593;</button></div>
+                <div class="actions"><div class="context-tools"><select id="contextKind" aria-label="Context source"><option value="selection">Selection</option><option value="file">Active file</option><option value="symbols">Symbols</option><option value="definition">Definition</option><option value="references">References</option><option value="type">Type info</option><option value="diagnostics">Diagnostics</option><option value="terminal">Terminal selection</option><option value="git-diff">Git diff</option></select><button id="attach" class="attach" title="Attach context" aria-label="Attach context">+</button></div><span id="budget" title="Estimated prompt context budget"></span><span id="status" class="status">Starting...</span><button id="retryStronger" class="send secondary" title="Retry with the next route" aria-label="Retry with the next route" hidden>↧</button><button id="send" class="send" title="Send" aria-label="Send">&#8593;</button></div>
             </div>
         </section>
     </main>
