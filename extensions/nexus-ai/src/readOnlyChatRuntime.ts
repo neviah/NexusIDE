@@ -39,13 +39,25 @@ export class ReadOnlyChatRuntime {
 
     public async *stream(request: ReadOnlyChatRequest, signal: AbortSignal): AsyncGenerator<RoutedCompletionEvent> {
         const candidates = await this.discoverCandidates(request, signal);
+        const images = request.context?.filter((attachment) => attachment.kind === "image") ?? [];
         yield* this.router.stream({
             runId: request.runId,
             candidates,
             messages: [
                 { role: "system", content: systemInstruction(request.mode) },
-                { role: "user", content: request.context?.length ? `${request.prompt}\n\nWorkspace context:\n${formatContext(request.context)}` : request.prompt },
+                {
+                    role: "user",
+                    content: request.context?.length ? `${request.prompt}\n\nWorkspace context:\n${formatContext(request.context)}` : request.prompt,
+                    contentParts: images.length ? [
+                        { type: "text", text: request.prompt },
+                        ...images.map((image) => ({ type: "image" as const, mimeType: image.mimeType ?? "image/png", data: image.imageData ?? new Uint8Array() })),
+                        ...(request.context?.filter((attachment) => attachment.kind !== "image").length
+                            ? [{ type: "text" as const, text: `Workspace context:\n${formatContext(request.context?.filter((attachment) => attachment.kind !== "image") ?? [])}` }]
+                            : []),
+                    ] : undefined,
+                },
             ],
+            requirements: images.length ? { vision: true } : undefined,
             temperature: 0.2,
         }, signal);
     }
@@ -54,6 +66,7 @@ export class ReadOnlyChatRuntime {
         const candidates: RouteCandidate[] = [];
         let firstFailure: NexusError | undefined;
         const selection = request.modelSelection;
+        const images = request.context?.filter((attachment) => attachment.kind === "image") ?? [];
 
         for (const adapter of this.providers.list()) {
             const providerId = adapter.manifest().id;
@@ -76,7 +89,7 @@ export class ReadOnlyChatRuntime {
                     continue;
                 }
                 await requestProgress(request, `Discovering eligible ${adapter.manifest().displayName} models...`);
-                const models = await adapter.listModels(signal);
+                const models = (await adapter.listModels(signal)).filter((model) => !images.length || model.supportsVision === true);
                 const stack = selection === "auto" ? this.routeStack?.load() ?? [] : [];
                 candidates.push(...models.flatMap((model) => {
                     const route = `${providerId}/${model.id}`;
@@ -109,9 +122,9 @@ export class ReadOnlyChatRuntime {
         if (candidates.length === 0) {
             throw new NexusError({
                 code: "no-routes",
-                message: selection === "auto"
-                    ? "No configured local or free-tier model is available."
-                    : `${providerLabel(selection)} has no configured free model available.`,
+                message: images.length
+                    ? "No configured local or free-tier vision model is available. Add a vision-capable model or remove the image attachment."
+                    : "No configured local or free-tier model is available.",
             });
         }
         return candidates;

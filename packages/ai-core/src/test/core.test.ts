@@ -184,6 +184,38 @@ test("cancellation is normalized and never falls back", async () => {
     assert.deepEqual(secondCalls, []);
 });
 
+test("vision requests encode provider-specific image parts and require vision-capable routes", async () => {
+    let openAiBody = "";
+    const vision = new OpenAICompatibleAdapter({
+        id: "vision",
+        displayName: "Vision",
+        baseUrl: "https://example.test/v1",
+        costClass: "free-tier",
+        supportsVision: true,
+        fetch: async (_input, init) => {
+            openAiBody = String(init?.body);
+            return new Response('data: {"choices":[{"delta":{"content":"image received"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n', { headers: { "content-type": "text/event-stream" } });
+        },
+    });
+    const textOnly = new OpenAICompatibleAdapter({
+        id: "text-only",
+        displayName: "Text",
+        baseUrl: "https://example.test/v1",
+        costClass: "free-tier",
+        fetch: async () => new Response('data: {"choices":[{"delta":{"content":"text only"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n', { headers: { "content-type": "text/event-stream" } }),
+    });
+    const visionCandidate = { ...candidate(vision, "free-tier"), model: { ...candidate(vision, "free-tier").model, supportsVision: true } };
+    const events = await collect(new CompletionRouter().stream({
+        runId: "vision",
+        candidates: [visionCandidate, candidate(textOnly, "free-tier")],
+        requirements: { vision: true },
+        messages: [{ role: "user", content: "Describe the image", contentParts: [{ type: "text", text: "Describe" }, { type: "image", mimeType: "image/png", data: new Uint8Array([1, 2, 3]) }] }],
+    }, new AbortController().signal));
+    assert.equal(events.map((event) => event.type === "text-delta" ? event.text : "").join(""), "image received");
+    assert.match(openAiBody, /"image_url"/);
+    assert.match(openAiBody, /data:image\/png;base64,AQID/);
+});
+
 test("a provider that completes without response text falls back to the next no-cost route", async () => {
     const empty = new OpenAICompatibleAdapter({
         id: "empty",
@@ -284,6 +316,7 @@ test("OpenRouter admits only models currently priced free", async () => {
         contextTokens: 32_000,
         supportsTools: true,
         supportsStructuredOutput: true,
+        supportsVision: false,
         verifiedAt: "2026-09-01T00:00:00.000Z",
     }]);
 });

@@ -12,6 +12,7 @@ export interface OpenAICompatibleOptions {
     fetch?: typeof fetch;
     supportsTools?: boolean;
     supportsStructuredOutput?: boolean;
+    supportsVision?: boolean;
     headers?: Readonly<Record<string, string>>;
     apiKeyHeader?: string;
     modelsPath?: string;
@@ -28,6 +29,7 @@ export interface OpenAICompatibleModel {
     displayName?: string;
     supportedGenerationMethods?: string[];
     supported_parameters?: string[];
+    architecture?: { input_modalities?: readonly string[]; output_modalities?: readonly string[] };
     pricing?: {
         prompt?: string;
         completion?: string;
@@ -76,6 +78,7 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
                 contextTokens: model.context_length ?? model.inputTokenLimit,
                 supportsTools: this.options.supportsTools ?? true,
                 supportsStructuredOutput: this.options.supportsStructuredOutput ?? true,
+                supportsVision: this.options.supportsVision ?? model.architecture?.input_modalities?.includes("image") ?? false,
                 verifiedAt: this.options.verifiedAt?.() ?? new Date().toISOString(),
             }] : [];
         });
@@ -99,7 +102,12 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
                 model: request.model,
-                messages: request.messages,
+                messages: request.messages.map((message) => ({
+                    role: message.role,
+                    content: message.contentParts?.length ? message.contentParts.map((part) => part.type === "text"
+                        ? { type: "text", text: part.text }
+                        : { type: "image_url", image_url: { url: `data:${part.mimeType};base64,${base64(part.data)}` } }) : message.content,
+                })),
                 stream: true,
                 stream_options: { include_usage: true },
                 max_tokens: request.maxOutputTokens,
@@ -200,6 +208,7 @@ export function createOpenRouterAdapter(options: Pick<OpenAICompatibleOptions, "
             contextTokens: model.context_length,
             supportsTools: model.supported_parameters?.includes("tools") ?? false,
             supportsStructuredOutput: model.supported_parameters?.some((parameter) => parameter === "structured_outputs" || parameter === "response_format") ?? false,
+            supportsVision: model.architecture?.input_modalities?.includes("image") ?? false,
             verifiedAt: verifiedAt(),
         } : undefined,
     });
@@ -287,4 +296,8 @@ function defaultModels(payload: unknown): readonly OpenAICompatibleModel[] {
     if (Array.isArray(payload)) return payload as OpenAICompatibleModel[];
     if (payload && typeof payload === "object" && "data" in payload && Array.isArray(payload.data)) return payload.data as OpenAICompatibleModel[];
     return [];
+}
+
+function base64(data: Uint8Array): string {
+    return Buffer.from(data).toString("base64");
 }

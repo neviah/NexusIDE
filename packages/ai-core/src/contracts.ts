@@ -43,13 +43,19 @@ export interface ModelDescriptor {
     contextTokens?: number;
     supportsTools: boolean;
     supportsStructuredOutput: boolean;
+    supportsVision?: boolean;
     codingScore?: number;
     verifiedAt: string;
 }
 
+export type ChatContentPart =
+    | { type: "text"; text: string }
+    | { type: "image"; mimeType: string; data: Uint8Array };
+
 export interface ChatMessage {
     role: "system" | "user" | "assistant" | "tool";
     content: string;
+    contentParts?: readonly ChatContentPart[];
     toolCallId?: string;
 }
 
@@ -93,6 +99,7 @@ export interface PaidRouteConsent {
 export interface RouteRequirements {
     tools?: boolean;
     structuredOutput?: boolean;
+    vision?: boolean;
     estimatedInputTokens?: number;
 }
 

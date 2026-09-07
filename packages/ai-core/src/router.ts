@@ -138,6 +138,7 @@ export function eligibleCandidates(request: RoutedCompletionRequest, now = Date.
         .filter((candidate) => !candidate.cooldownUntil || Date.parse(candidate.cooldownUntil) <= now)
         .filter((candidate) => !request.requirements?.tools || candidate.model.supportsTools)
         .filter((candidate) => !request.requirements?.structuredOutput || candidate.model.supportsStructuredOutput)
+        .filter((candidate) => !request.requirements?.vision || candidate.model.supportsVision === true)
         .filter((candidate) => !request.requirements?.estimatedInputTokens || !candidate.model.contextTokens || request.requirements.estimatedInputTokens <= candidate.model.contextTokens)
         .map((candidate, index) => ({ candidate, index, score: routeScore(candidate, request) }))
         .sort((left, right) => right.score - left.score || left.index - right.index)

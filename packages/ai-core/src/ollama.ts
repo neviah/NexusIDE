@@ -64,7 +64,13 @@ export class OllamaAdapter implements ProviderAdapter {
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
                 model: request.model,
-                messages: request.messages,
+                messages: request.messages.map((message) => ({
+                    role: message.role,
+                    content: message.content,
+                    ...(message.contentParts?.some((part) => part.type === "image")
+                        ? { images: message.contentParts.filter((part) => part.type === "image").map((part) => base64(part.data)) }
+                        : {}),
+                })),
                 stream: true,
                 format: request.structuredOutput,
                 options: { temperature: request.temperature, num_predict: request.maxOutputTokens },
@@ -97,4 +103,8 @@ export class OllamaAdapter implements ProviderAdapter {
             throw normalizeError(error, "ollama");
         }
     }
+}
+
+function base64(data: Uint8Array): string {
+    return Buffer.from(data).toString("base64");
 }
